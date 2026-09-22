@@ -119,19 +119,19 @@ class TestCommentAbsorberWeb(unittest.TestCase):
         self.assertEqual(state["stats"]["count"], 0)
         self.assertEqual(state["stats"]["status"], "IDLE")
     def test_05_theme_and_cors_support(self):
-        """Verify theme toggle button, GitHub Pages elements, and CORS headers."""
+        """Verify theme toggle button, live indicator, and CORS headers."""
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
         self.assertIn("theme-toggle-btn", html)
         self.assertIn("data-theme=\"light\"", html)
-        self.assertIn("gh-pages-notice", html)
-        self.assertIn("gh-modal", html)
+        self.assertIn("live-indicator", html)
+        self.assertIn("btn-paste-modal", html)
         
         # Verify CORS headers
         status_resp = self.client.get("/api/auth/status")
         self.assertEqual(status_resp.headers.get("Access-Control-Allow-Origin"), "*")
-        print("\n[+] Verified: Theme toggle, GitHub Pages elements, and CORS headers are active.")
+        print("\n[+] Verified: Theme toggle, live controls, and CORS headers are active.")
 
 if __name__ == "__main__":
     unittest.main()
