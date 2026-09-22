@@ -117,7 +117,7 @@ Comment Absorber/
 │   ├── url_parser.py              # Facebook URL Format Parser
 │   └── gui.py                     # Desktop GUI (Tkinter)
 │
-├── tests/                         # Full Automated Test Suite (46 Tests)
+├── tests/                         # Full Automated Test Suite (47 Tests)
 │   ├── test_api_client.py
 │   ├── test_collector.py
 │   ├── test_exporter.py
@@ -132,6 +132,15 @@ Comment Absorber/
 
 ---
 
+## Deployment Modes
+
+| Environment | How It Works | Capabilities |
+| :--- | :--- | :--- |
+| **Local Desktop Studio** (`http://localhost:5000`) | Runs `python run_web.py` locally | Full automated browser scraping, saved Facebook session, direct `.xlsx` export |
+| **GitHub Pages Online Studio** (`*.github.io`) | Static hosting in any browser | Light/Dark theme, universal Direct Paste Mode, live interactive simulator, client-side `.xls` and `.csv` downloads |
+
+---
+
 ## Running Automated Tests
 
 Run the test suite to verify all modules and parsers:
@@ -139,7 +148,7 @@ Run the test suite to verify all modules and parsers:
 python -m pytest
 ```
 
-All 46 test cases across URL parsing, Excel formatting, API error handling, and web collectors pass with 100% compliance.
+All 47 test cases across URL parsing, Excel formatting, API error handling, theme switching, and web collectors pass with 100% compliance.
 
 ---
 
