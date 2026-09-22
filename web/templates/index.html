@@ -1,0 +1,2615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comment Absorber — Real-Time Facebook Comments</title>
+  
+  <!-- Clean Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  
+  <style>
+/* ==========================================================================
+   Comment Absorber — Responsive Full-Monitor Clean & Simple UI System
+   ========================================================================== */
+
+:root {
+  /* Color Palette */
+  --bg-page: #0b0f19;
+  --bg-card: #111827;
+  --bg-card-hover: #162032;
+  --bg-input: #0c121e;
+  --bg-subtle: #1e293b;
+  --bg-subtle-hover: #26354a;
+  
+  --border: #1e293b;
+  --border-light: #2c3b52;
+  --border-focus: #3b82f6;
+  
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --text-muted: #94a3b8;
+  
+  --blue: #1877f2;
+  --blue-hover: #166fe5;
+  --indigo: #4f46e5;
+  --indigo-hover: #4338ca;
+  --emerald: #10b981;
+  --cyan: #06b6d4;
+  --red: #ef4444;
+  --red-hover: #dc2626;
+  --amber: #f59e0b;
+  
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.35);
+  
+  --transition: all 0.15s ease;
+}
+
+/* Reset & Foundation */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Full-Width App Header */
+.app-header {
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+  background: rgba(11, 15, 25, 0.96);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 12px 28px;
+}
+
+.header-inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--blue);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  display: block;
+  line-height: 1.2;
+}
+
+.brand-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: block;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+.header-status-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.session-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 13.5px;
+  font-weight: 600;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.session-badge.connected .status-dot {
+  background: var(--emerald);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.session-badge.connected {
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #e2e8f0;
+}
+
+/* Prominent Status Pill (Ongoing / Done / Stopped / Ready) */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 15px;
+  border-radius: var(--radius-full);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  transition: var(--transition);
+}
+
+.status-title-prefix {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.8;
+  letter-spacing: 0.04em;
+}
+
+.status-label {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+/* Status variants */
+.status-pill.status-ready {
+  background: var(--bg-subtle);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+.status-pill.status-ready .status-dot {
+  background: var(--text-muted);
+}
+
+.status-pill.status-ongoing,
+.status-pill.status-active {
+  background: rgba(24, 119, 242, 0.15);
+  border-color: rgba(24, 119, 242, 0.45);
+  color: #60a5fa;
+}
+.status-pill.status-ongoing .status-dot,
+.status-pill.status-active .status-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: pulseDot 1.4s infinite ease-in-out;
+}
+
+.status-pill.status-done,
+.status-pill.status-success {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #34d399;
+}
+.status-pill.status-done .status-dot,
+.status-pill.status-success .status-dot {
+  background: var(--emerald);
+  box-shadow: 0 0 6px var(--emerald);
+}
+
+.status-pill.status-stopped,
+.status-pill.status-idle {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+.status-pill.status-stopped .status-dot,
+.status-pill.status-idle .status-dot {
+  background: var(--amber);
+}
+
+.status-pill.status-error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+.status-pill.status-error .status-dot {
+  background: var(--red);
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.6; }
+}
+
+.btn-subtle {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-subtle:hover {
+  background: var(--bg-subtle-hover);
+  color: var(--text-primary);
+}
+
+/* Full-Monitor Responsive Container */
+.dashboard-container {
+  width: 100%;
+  max-width: 100%;
+  padding: 18px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Facebook Login Notice Banner */
+.fb-login-notice {
+  background: linear-gradient(135deg, rgba(24, 119, 242, 0.14) 0%, rgba(17, 24, 39, 0.98) 100%);
+  border: 1px solid rgba(24, 119, 242, 0.38);
+  border-left: 4px solid var(--blue);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 4px 14px rgba(24, 119, 242, 0.12);
+  animation: fadeInNotice 0.25s ease forwards;
+}
+
+@keyframes fadeInNotice {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fb-login-notice-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.fb-login-notice-icon {
+  color: var(--blue);
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.fb-login-notice-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.fb-login-notice-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.fb-login-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-fb-login {
+  background: var(--blue);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-fb-login:hover {
+  background: var(--blue-hover);
+  box-shadow: 0 0 12px rgba(24, 119, 242, 0.4);
+}
+
+.btn-notice-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.btn-notice-dismiss:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Card Style */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+}
+
+/* Top Control Bar Card */
+.control-bar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.url-row {
+  width: 100%;
+}
+
+.url-input-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  background: #131b2e;
+  border: 1.5px solid #334155;
+  border-radius: var(--radius-md);
+  padding: 4px 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: var(--transition);
+}
+
+.url-input-wrap:focus-within {
+  border-color: #38bdf8;
+  background: #16223b;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+}
+
+.url-icon {
+  color: #38bdf8;
+  margin-right: 14px;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.url-input-wrap input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 14px 0;
+  outline: none;
+  font-family: inherit;
+}
+
+.url-input-wrap input::placeholder {
+  color: #94a3b8;
+  font-size: 15px;
+}
+
+.btn-clear {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: var(--transition);
+}
+.btn-clear:hover {
+  color: #ffffff;
+}
+
+/* Controls Buttons Row */
+.controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn-group-primary, .btn-group-secondary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+.btn-primary:not(:disabled):hover {
+  background: var(--blue-hover);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+.btn-danger:not(:disabled):hover {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+
+/* New Collect Another Comment Button */
+.btn-accent {
+  background: var(--indigo);
+  color: #fff;
+}
+.btn-accent:hover {
+  background: var(--indigo-hover);
+}
+
+.btn-excel {
+  background: rgba(16, 124, 65, 0.18);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+.btn-excel:not(:disabled):hover {
+  background: #107c41;
+  color: #fff;
+  border-color: #107c41;
+}
+
+.btn-secondary {
+  background: var(--bg-subtle);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+.btn-secondary:not(:disabled):hover {
+  background: var(--bg-subtle-hover);
+  color: var(--text-primary);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+}
+.btn-ghost:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+}
+
+.status-subtext {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+/* Metrics Full-Width Grid */
+.metrics-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.metric-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #cbd5e1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.metric-unit {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.speed-color { color: var(--cyan); }
+.authors-color { color: var(--emerald); }
+
+.metric-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Widescreen Dashboard Body Grid */
+.dashboard-body-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 992px) {
+  .dashboard-body-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left Column: Spotlight Card */
+.spotlight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-left: 3px solid var(--blue);
+  background: var(--bg-card);
+}
+
+.spotlight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spotlight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--blue);
+}
+
+.spotlight-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.spotlight-time {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.spotlight-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1;
+}
+
+.spotlight-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.spotlight-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.spotlight-author {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 5px;
+}
+
+.spotlight-text {
+  font-size: 14.5px;
+  color: #e2e8f0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.spotlight-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.spotlight-tip {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Right Column: Full-Width Comments Feed */
+.feed-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  min-height: 480px;
+}
+
+.feed-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.feed-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.feed-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.feed-counter-pill {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+}
+
+.feed-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.feed-search-wrap {
+  display: flex;
+  align-items: center;
+  background: #131b2e;
+  border: 1.5px solid #334155;
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  gap: 10px;
+  color: #38bdf8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: var(--transition);
+}
+
+.feed-search-wrap:focus-within {
+  border-color: #38bdf8;
+  background: #16223b;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+}
+
+.feed-search-wrap svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+}
+
+.feed-search-wrap input {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 500;
+  outline: none;
+  font-family: inherit;
+  width: 280px;
+}
+
+.feed-search-wrap input::placeholder {
+  color: #94a3b8;
+  font-size: 14.5px;
+  font-weight: 400;
+}
+
+.autoscroll-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+}
+.autoscroll-checkbox input {
+  cursor: pointer;
+}
+
+/* Stream List Container (Full Height) */
+.stream-container {
+  height: calc(100vh - 380px);
+  min-height: 420px;
+  overflow-y: auto;
+  position: relative;
+}
+
+.stream-empty {
+  text-align: center;
+  padding: 100px 20px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  margin-bottom: 12px;
+  opacity: 0.35;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.empty-desc {
+  font-size: 14px;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+/* Stream List Rows */
+.stream-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.comment-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 15px 22px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s ease;
+}
+
+.comment-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.comment-row.is-latest {
+  background: rgba(24, 119, 242, 0.08);
+}
+
+.row-index {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+
+.row-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.row-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.row-author {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.row-time {
+  font-size: 13.5px;
+  color: #94a3b8;
+}
+
+.row-message {
+  font-size: 15px;
+  color: #f1f5f9;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* App Footer */
+.app-footer {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  padding: 20px 18px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Floating Toast Notifications */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100vw - 48px);
+}
+
+.toast {
+  background: #1e293b;
+  border: 1px solid var(--border-light);
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  box-shadow: var(--shadow-md);
+  animation: slideToast 0.2s ease forwards;
+}
+
+.toast.success { border-left: 3px solid var(--emerald); }
+.toast.error { border-left: 3px solid var(--red); }
+.toast.info { border-left: 3px solid var(--blue); }
+
+@keyframes slideToast {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   Mobile Responsiveness Engine — Optimized for All Phone Brands & Sizes
+   (Apple iPhone SE to Pro Max, Samsung Galaxy, Google Pixel, Xiaomi, OnePlus)
+   ========================================================================== */
+
+@media (max-width: 991px) {
+  .dashboard-container {
+    padding: 14px 16px 36px;
+    gap: 14px;
+  }
+
+  .dashboard-body-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spotlight-card {
+    position: static;
+  }
+
+  .stream-container {
+    height: 52vh;
+    min-height: 340px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 10px 14px;
+  }
+
+  .header-inner {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .header-status-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .fb-login-notice {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .fb-login-notice-actions {
+    justify-content: flex-end;
+  }
+
+  .btn-fb-login {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  .controls-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .btn-group-primary, .btn-group-secondary {
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px; /* Touch-friendly accessibility guideline */
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 12px 14px;
+  }
+
+  .metric-value {
+    font-size: 20px;
+  }
+
+  .feed-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .feed-controls {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .feed-search-wrap {
+    width: 100%;
+  }
+
+  .feed-search-wrap input {
+    width: 100%;
+  }
+
+  .toast-container {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+    max-width: calc(100vw - 32px);
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-container {
+    padding: 12px 14px calc(24px + env(safe-area-inset-bottom, 12px));
+    gap: 14px;
+  }
+
+  .brand-name {
+    font-size: 16.5px;
+  }
+
+  .brand-sub {
+    font-size: 13px;
+  }
+
+  .brand-logo {
+    width: 34px;
+    height: 34px;
+  }
+
+  .status-pill {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .session-badge {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .metric-card {
+    padding: 12px 14px;
+  }
+
+  .metric-label {
+    font-size: 12.5px;
+  }
+
+  .metric-value {
+    font-size: 21px;
+  }
+
+  .comment-row {
+    padding: 13px 14px;
+    gap: 12px;
+  }
+
+  .row-index {
+    font-size: 13px;
+    width: 28px;
+  }
+
+  .row-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .stream-container {
+    height: 50vh;
+    min-height: 300px;
+  }
+}
+
+/* Modal Backdrop & Card for Universal Client-Side Paste */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeInNotice 0.15s ease;
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close:hover {
+  color: #ffffff;
+}
+
+.modal-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.paste-textarea {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+}
+
+.paste-textarea:focus {
+  border-color: var(--border-focus);
+}
+
+.modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+</style>
+</head>
+<body>
+  <!-- Full-Width Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-name">Comment Absorber</span>
+          <span class="brand-sub">Facebook Comment Collector</span>
+        </div>
+      </div>
+
+      <div class="header-status-group">
+        <!-- Facebook Session Status -->
+        <div id="fb-session-pill" class="session-badge" title="Facebook browser session status">
+          <span class="status-dot"></span>
+          <span id="fb-session-text">Checking session...</span>
+        </div>
+
+        <button type="button" class="btn-subtle" id="btn-relogin" style="display:none;" title="Log in to Facebook in browser">
+          Log In
+        </button>
+
+        <!-- Prominent Collection Status Indicator -->
+        <div id="live-indicator" class="status-pill status-ready" title="Current collection state">
+          <span class="status-dot"></span>
+          <span class="status-title-prefix">STATUS:</span>
+          <span id="live-status-text" class="status-label">Ready</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Full-Width Responsive Dashboard Container -->
+  <main class="dashboard-container">
+
+    <!-- Facebook Login Required Prompt Banner -->
+    <section id="fb-login-notice" class="fb-login-notice" style="display: none;" role="alert">
+      <div class="fb-login-notice-content">
+        <div class="fb-login-notice-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+        </div>
+        <div class="fb-login-notice-text">
+          <div class="fb-login-notice-title">Facebook Login Required to Access Comments</div>
+          <div class="fb-login-notice-desc">
+            Please log in to your Facebook account to access post comments and enable comment absorption. Facebook requires an active login session to read public and private post comments.
+          </div>
+        </div>
+      </div>
+      <div class="fb-login-notice-actions">
+        <button type="button" id="btn-login-prompt" class="btn btn-fb-login" title="Open Facebook Login Window">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          <span>Log In to Facebook</span>
+        </button>
+        <button type="button" id="btn-dismiss-notice" class="btn-notice-dismiss" title="Dismiss notice">&times;</button>
+      </div>
+    </section>
+
+    <!-- Top Control Bar Card -->
+    <section class="card control-bar-card">
+      <div class="url-row">
+        <div class="url-input-wrap">
+          <svg class="url-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          <input 
+            type="url" 
+            id="post-url" 
+            placeholder="Paste target Facebook post, reel, or video URL here..." 
+            value=""
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" id="clear-url-btn" class="btn-clear" title="Clear URL">&times;</button>
+        </div>
+
+        <!-- Hidden legacy engine mode input to keep backend compatibility -->
+        <div style="display:none;">
+          <label class="engine-card active" data-mode="browser">
+            <input type="radio" name="engine-mode" value="browser" checked />
+          </label>
+          <label class="engine-card" data-mode="simulator">
+            <input type="radio" name="engine-mode" value="simulator" />
+          </label>
+          <div id="engine-display-badge">Real Facebook Extractor</div>
+          <button type="button" id="sound-toggle"><span id="sound-icon"></span></button>
+        </div>
+      </div>
+
+      <!-- Action Buttons Row -->
+      <div class="controls-row">
+        <div class="btn-group-primary">
+          <button type="button" id="btn-start" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>Start Collecting Real Comments</span>
+          </button>
+
+          <button type="button" id="btn-stop" class="btn btn-danger" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>
+            <span>Stop</span>
+          </button>
+
+          <!-- New dedicated Collect Another Comment button -->
+          <button type="button" id="btn-collect-another" class="btn btn-accent" title="Clear and paste another Facebook post link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"></path></svg>
+            <span>Collect Another Comment</span>
+          </button>
+        </div>
+
+        <div class="btn-group-secondary">
+          <button type="button" id="btn-export-excel" class="btn btn-excel" disabled title="Export as Excel spreadsheet">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>
+            <span>Export Excel (.xlsx)</span>
+          </button>
+
+          <button type="button" id="btn-export-csv" class="btn btn-secondary" disabled title="Export as CSV file">
+            <span>Export CSV</span>
+          </button>
+
+          <button type="button" id="btn-paste-modal" class="btn btn-secondary" title="Paste copied Facebook comments directly without backend">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+            <span>Paste Comments Directly</span>
+          </button>
+
+          <button type="button" id="btn-clear" class="btn btn-ghost" title="Clear comments stream">
+            <span>Clear</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Clean Status Message Subtext -->
+      <div class="status-subtext" id="status-message">
+        Ready. Paste your Facebook link and click Start Collecting.
+      </div>
+    </section>
+
+    <!-- Metrics Row (Full Width 4-Column Grid) -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">TOTAL COMMENTS</div>
+        <div class="metric-value" id="kpi-total">0</div>
+        <div class="metric-desc">From target post</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">INGESTION SPEED</div>
+        <div class="metric-value speed-color" id="kpi-speed">0.0 <span class="metric-unit">/sec</span></div>
+        <div class="metric-desc">Real-time throughput</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">ELAPSED TIME</div>
+        <div class="metric-value" id="kpi-time">00:00</div>
+        <div class="metric-desc">Collection duration</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">UNIQUE COMMENTERS</div>
+        <div class="metric-value authors-color" id="kpi-unique">0</div>
+        <div class="metric-desc">Distinct authors</div>
+      </div>
+    </section>
+
+    <!-- Main Responsive Widescreen Split Layout -->
+    <section class="dashboard-body-grid">
+      
+      <!-- Left Column: Spotlight Card (Currently Collected Comment) -->
+      <aside class="card spotlight-card" id="spotlight-section">
+        <div class="spotlight-header">
+          <div class="spotlight-badge">
+            <span class="spotlight-dot"></span>
+            <span>CURRENTLY COLLECTED COMMENT</span>
+          </div>
+          <span class="spotlight-time" id="spotlight-time">Waiting to collect...</span>
+        </div>
+
+        <div class="spotlight-body" id="spotlight-body">
+          <div class="spotlight-avatar" id="spotlight-avatar">FB</div>
+          <div class="spotlight-details">
+            <div class="spotlight-author" id="spotlight-author">System Ready</div>
+            <div class="spotlight-text" id="spotlight-text">
+              Comments absorbed by the system will be displayed here live in real-time as they stream in.
+            </div>
+          </div>
+        </div>
+
+        <div class="spotlight-footer">
+          <span class="spotlight-tip">&#128161; Supports all Facebook posts, reels, videos, and watch links.</span>
+        </div>
+      </aside>
+
+      <!-- Right Column: Expansive Full-Width Comments Feed -->
+      <section class="card feed-card">
+        <div class="feed-header">
+          <div class="feed-title-group">
+            <h2 class="feed-title">Comments Feed</h2>
+            <span class="feed-counter-pill"><span id="feed-counter">0</span> collected</span>
+          </div>
+
+          <div class="feed-controls">
+            <div class="feed-search-wrap">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="feed-search" placeholder="Search comments by author or keyword..." />
+            </div>
+
+            <label class="autoscroll-checkbox" title="Automatically keep newest comment in view">
+              <input type="checkbox" id="autoscroll-toggle" checked />
+              <span>Auto-scroll</span>
+            </label>
+
+            <button type="button" class="btn-subtle" id="sort-toggle-btn" title="Toggle sort order">
+              <span id="sort-label">&#8595; Newest First</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Comments Stream Container -->
+        <div class="stream-container" id="stream-container">
+          <div class="stream-empty" id="stream-empty">
+            <div class="empty-icon">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <div class="empty-title">No comments collected yet</div>
+            <div class="empty-desc">Paste your Facebook URL above and click <strong>Start Collecting Real Comments</strong>.</div>
+          </div>
+
+          <!-- Dynamic Comments List -->
+          <div class="stream-list" id="stream-list"></div>
+        </div>
+      </section>
+
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <div>Comment Absorber &bull; Responsive Full-Screen Modern Edition</div>
+  </footer>
+
+  <!-- Direct Paste Comments Modal (Universal Client-Side Absorption) -->
+  <div id="paste-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Paste Facebook Comments</h3>
+        <button type="button" id="btn-close-paste-modal" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Copy any comments directly from a Facebook post (highlight &amp; copy) and paste them below. The system will parse all users, dates, and comments in real-time and stream them live!
+        </p>
+        <textarea id="paste-input" class="paste-textarea" rows="7" placeholder="Paste Facebook comments text or HTML here..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-demo-test" class="btn btn-ghost" style="margin-right:auto;">Load Sample Comments</button>
+        <button type="button" id="btn-cancel-paste" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="btn-do-paste-absorb" class="btn btn-primary">Absorb Comments</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Client Application Logic -->
+  <script>
+/**
+ * Comment Absorber Studio - Real-Time Web Application Client
+ * Handles Server-Sent Events (SSE), real Facebook comment extraction,
+ * session detection, Web Audio chimes, and instant exports.
+ */
+
+(function () {
+  'use strict';
+
+  const API_BASE = (function() {
+    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+      return window.location.origin;
+    }
+    return 'http://127.0.0.1:5000';
+  })();
+
+  // --- State ---
+  const state = {
+    comments: [],
+    selectedMode: 'browser', // DEFAULT TO REAL BROWSER EXTRACTION
+    sortOrder: 'newest',     // 'newest' | 'oldest'
+    soundEnabled: true,
+    autoScroll: true,
+    isCollecting: false,
+    searchQuery: '',
+    eventSource: null,
+    audioCtx: null,
+    isLoggedIn: false,
+    loginPopup: null,
+    sessionPollInterval: null,
+  };
+
+  // --- DOM Elements ---
+  const el = {
+    postUrl: document.getElementById('post-url'),
+    clearUrlBtn: document.getElementById('clear-url-btn'),
+    engineCards: document.querySelectorAll('.engine-card'),
+    engineDisplayBadge: document.getElementById('engine-display-badge'),
+    
+    // Facebook Session & Login Prompt
+    fbSessionPill: document.getElementById('fb-session-pill'),
+    fbSessionText: document.getElementById('fb-session-text'),
+    btnRelogin: document.getElementById('btn-relogin'),
+    fbLoginNotice: document.getElementById('fb-login-notice'),
+    btnLoginPrompt: document.getElementById('btn-login-prompt'),
+    btnDismissNotice: document.getElementById('btn-dismiss-notice'),
+
+    // Actions
+    btnStart: document.getElementById('btn-start'),
+    btnStop: document.getElementById('btn-stop'),
+    btnCollectAnother: document.getElementById('btn-collect-another'),
+    btnExportExcel: document.getElementById('btn-export-excel'),
+    btnExportCsv: document.getElementById('btn-export-csv'),
+    btnClear: document.getElementById('btn-clear'),
+
+    // Direct Paste Modal
+    btnPasteModal: document.getElementById('btn-paste-modal'),
+    pasteModal: document.getElementById('paste-modal'),
+    btnClosePasteModal: document.getElementById('btn-close-paste-modal'),
+    btnCancelPaste: document.getElementById('btn-cancel-paste'),
+    btnDoPasteAbsorb: document.getElementById('btn-do-paste-absorb'),
+    btnDemoTest: document.getElementById('btn-demo-test'),
+    pasteInput: document.getElementById('paste-input'),
+    statusMessage: document.getElementById('status-message'),
+    liveIndicator: document.getElementById('live-indicator'),
+    liveStatusText: document.getElementById('live-status-text'),
+    soundToggle: document.getElementById('sound-toggle'),
+    soundIcon: document.getElementById('sound-icon'),
+    
+    // KPIs
+    kpiTotal: document.getElementById('kpi-total'),
+    kpiSpeed: document.getElementById('kpi-speed'),
+    kpiTime: document.getElementById('kpi-time'),
+    kpiUnique: document.getElementById('kpi-unique'),
+    
+    // Spotlight Card
+    spotlightTime: document.getElementById('spotlight-time'),
+    spotlightAvatar: document.getElementById('spotlight-avatar'),
+    spotlightAuthor: document.getElementById('spotlight-author'),
+    spotlightText: document.getElementById('spotlight-text'),
+    
+    // Stream Feed
+    feedCounter: document.getElementById('feed-counter'),
+    feedSearch: document.getElementById('feed-search'),
+    autoscrollToggle: document.getElementById('autoscroll-toggle'),
+    sortToggleBtn: document.getElementById('sort-toggle-btn'),
+    sortLabel: document.getElementById('sort-label'),
+    streamContainer: document.getElementById('stream-container'),
+    streamEmpty: document.getElementById('stream-empty'),
+    streamList: document.getElementById('stream-list'),
+    
+    toastContainer: document.getElementById('toast-container'),
+  };
+
+  // --- Web Audio Chime ---
+  function playCommentChime() {
+    if (!state.soundEnabled) return;
+    try {
+      if (!state.audioCtx) {
+        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+      const osc = state.audioCtx.createOscillator();
+      const gain = state.audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, state.audioCtx.currentTime); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, state.audioCtx.currentTime + 0.08); // A5
+      gain.gain.setValueAtTime(0.04, state.audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, state.audioCtx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(state.audioCtx.destination);
+      osc.start();
+      osc.stop(state.audioCtx.currentTime + 0.12);
+    } catch (e) {}
+  }
+
+  // --- Toast Notifications ---
+  function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const icons = { success: '&#9989;', error: '&#10060;', info: '&#8505;' };
+    toast.innerHTML = `<span>${icons[type] || '&#8505;'}</span><span>${escapeHtml(message)}</span>`;
+    el.toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 250);
+    }, 4000);
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
+
+  // --- Check Facebook Session ---
+  async function checkFacebookSession() {
+    try {
+      const resp = await fetch(API_BASE + '/api/auth/status');
+      const data = await resp.json();
+      state.isLoggedIn = !!data.logged_in;
+      if (data.logged_in) {
+        onLoginDetected(false);
+      } else {
+        if (el.fbSessionPill) el.fbSessionPill.className = 'session-badge';
+        if (el.fbSessionText) el.fbSessionText.innerHTML = 'Facebook: Not Logged In';
+        if (el.btnRelogin) el.btnRelogin.style.display = 'inline-flex';
+        if (el.fbLoginNotice) el.fbLoginNotice.style.display = 'flex';
+      }
+    } catch (e) {
+      if (el.fbSessionText) el.fbSessionText.textContent = 'Facebook: Ready';
+    }
+  }
+
+  function startLoginFlow() {
+    try {
+      if (state.loginPopup && !state.loginPopup.closed) {
+        state.loginPopup.focus();
+      } else {
+        state.loginPopup = window.open('https://www.facebook.com/login/', 'fb_login_popup', 'width=1000,height=750,left=150,top=100');
+      }
+    } catch (e) {}
+
+    showToast('Opened Facebook login window. Log in, and the system will automatically return to the website!', 'info');
+
+    // Notify backend to also open visible browser driver if needed
+    try {
+      fetch(API_BASE + '/api/auth/login', { method: 'POST' }).catch(() => {});
+    } catch (e) {}
+
+    // Update banner with direct status
+    if (el.fbLoginNotice) {
+      el.fbLoginNotice.style.display = 'flex';
+      const titleEl = el.fbLoginNotice.querySelector('.fb-login-notice-title');
+      const descEl = el.fbLoginNotice.querySelector('.fb-login-notice-desc');
+      if (titleEl) titleEl.textContent = 'Facebook Login in Progress...';
+      if (descEl) descEl.innerHTML = 'Please log in to your Facebook account. <strong>The system will automatically detect your login and return you right here!</strong>';
+
+      if (el.btnLoginPrompt) {
+        el.btnLoginPrompt.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Continue to System (Logged In)</span>
+        `;
+        el.btnLoginPrompt.className = 'btn btn-primary';
+        el.btnLoginPrompt.onclick = () => onLoginDetected(true);
+      }
+    }
+
+    if (el.statusMessage) {
+      el.statusMessage.textContent = 'Waiting for Facebook login... The system will auto-detect your login and return here.';
+    }
+
+    // Start active polling every 1200ms
+    if (state.sessionPollInterval) clearInterval(state.sessionPollInterval);
+    state.sessionPollInterval = setInterval(async () => {
+      try {
+        const resp = await fetch(API_BASE + '/api/auth/status');
+        const data = await resp.json();
+        if (data.logged_in) {
+          onLoginDetected(true);
+        }
+      } catch (err) {}
+    }, 1200);
+  }
+
+  function onLoginDetected(showFeedback = true) {
+    if (state.sessionPollInterval) {
+      clearInterval(state.sessionPollInterval);
+      state.sessionPollInterval = null;
+    }
+    state.isLoggedIn = true;
+    try {
+      localStorage.setItem('comment_absorber_fb_logged', 'true');
+    } catch (e) {}
+
+    // Close login popup if still open and return focus to main window!
+    try {
+      if (state.loginPopup && !state.loginPopup.closed) {
+        state.loginPopup.close();
+        state.loginPopup = null;
+      }
+    } catch (e) {}
+
+    try {
+      window.focus();
+    } catch (e) {}
+
+    if (el.fbLoginNotice) el.fbLoginNotice.style.display = 'none';
+    if (el.fbSessionPill) el.fbSessionPill.className = 'session-badge connected';
+    if (el.fbSessionText) el.fbSessionText.innerHTML = 'Facebook: Logged In &#10004;';
+    if (el.btnRelogin) el.btnRelogin.style.display = 'none';
+
+    updateStatusUI('IDLE', 'Facebook account verified! Paste your post link and click Start Collecting.');
+    
+    if (showFeedback) {
+      showToast('Facebook login verified! Welcome back to Comment Absorber.', 'success');
+      // Highlight and focus the post URL input box
+      if (el.postUrl) {
+        setTimeout(() => {
+          el.postUrl.focus();
+          el.postUrl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+      }
+    }
+  }
+
+  // --- Format Duration ---
+  function formatDuration(sec) {
+    const s = Math.floor(sec || 0);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+  }
+
+  function updateKpis(stats) {
+    if (!stats) return;
+    el.kpiTotal.textContent = Number(stats.count || 0).toLocaleString();
+    el.kpiSpeed.innerHTML = `${stats.comments_per_sec || 0} <small style="font-size:14px;font-weight:600">/sec</small>`;
+    el.kpiTime.textContent = formatDuration(stats.elapsed_seconds || 0);
+    el.kpiUnique.textContent = Number(stats.unique_authors || 0).toLocaleString();
+    el.feedCounter.textContent = Number(stats.count || 0).toLocaleString();
+
+    const hasComments = (stats.count || 0) > 0;
+    el.btnExportExcel.disabled = !hasComments;
+    el.btnExportCsv.disabled = !hasComments;
+  }
+
+  function updateSpotlight(comment) {
+    if (!comment) return;
+    el.spotlightAuthor.textContent = comment.user_name || 'Facebook User';
+    el.spotlightText.textContent = comment.message || '(empty message)';
+    el.spotlightTime.textContent = comment.created_time ? `Absorbed at ${comment.created_time}` : 'Just now';
+    el.spotlightAvatar.textContent = comment.avatar_initials || 'FB';
+    el.spotlightAvatar.style.backgroundColor = comment.avatar_color || '#1877F2';
+
+    const spotCard = document.getElementById('spotlight-section');
+    if (spotCard) {
+      spotCard.style.borderColor = '#22d3ee';
+      setTimeout(() => {
+        spotCard.style.borderColor = 'rgba(6, 182, 212, 0.35)';
+      }, 350);
+    }
+  }
+
+  function createCommentRowElement(c, isLatest = false) {
+    const row = document.createElement('div');
+    row.className = `comment-row ${isLatest ? 'is-latest' : ''}`;
+    row.id = `comment-${c.comment_id}`;
+    row.innerHTML = `
+      <div class="row-index">#${c.index}</div>
+      <div class="row-avatar" style="background-color: ${escapeHtml(c.avatar_color || '#1877f2')}">
+        ${escapeHtml(c.avatar_initials || 'FB')}
+      </div>
+      <div class="row-content">
+        <div class="row-header">
+          <div class="row-author">${escapeHtml(c.user_name || 'Facebook User')}</div>
+          <div class="row-time">${escapeHtml(c.created_time || '')}</div>
+        </div>
+        <div class="row-message">${escapeHtml(c.message || '')}</div>
+      </div>
+    `;
+    return row;
+  }
+
+  function renderCommentsList() {
+    const query = state.searchQuery.trim().toLowerCase();
+    let filtered = state.comments;
+    if (query) {
+      filtered = state.comments.filter(
+        c => (c.user_name && c.user_name.toLowerCase().includes(query)) ||
+             (c.message && c.message.toLowerCase().includes(query))
+      );
+    }
+
+    if (state.sortOrder === 'oldest') {
+      filtered = [...filtered].sort((a, b) => a.timestamp_raw - b.timestamp_raw);
+    } else {
+      filtered = [...filtered].sort((a, b) => b.timestamp_raw - a.timestamp_raw);
+    }
+
+    if (filtered.length === 0) {
+      el.streamEmpty.style.display = 'block';
+      el.streamList.innerHTML = '';
+      if (query && state.comments.length > 0) {
+        el.streamEmpty.querySelector('.empty-title').textContent = 'No matching comments found';
+        el.streamEmpty.querySelector('.empty-desc').textContent = `No comments match "${query}".`;
+      } else {
+        el.streamEmpty.querySelector('.empty-title').textContent = 'No comments collected yet';
+        el.streamEmpty.querySelector('.empty-desc').textContent = 'Enter your Facebook post URL above and click Start Collecting Real Comments.';
+      }
+      return;
+    }
+
+    el.streamEmpty.style.display = 'none';
+    const fragment = document.createDocumentFragment();
+    filtered.forEach((c, idx) => {
+      const isLatest = (idx === 0 && state.sortOrder === 'newest') || (idx === filtered.length - 1 && state.sortOrder === 'oldest');
+      fragment.appendChild(createCommentRowElement(c, isLatest && state.isCollecting));
+    });
+
+    el.streamList.innerHTML = '';
+    el.streamList.appendChild(fragment);
+
+    if (state.autoScroll) {
+      scrollToTarget();
+    }
+  }
+
+  function scrollToTarget() {
+    if (state.sortOrder === 'newest') {
+      el.streamContainer.scrollTop = 0;
+    } else {
+      el.streamContainer.scrollTop = el.streamContainer.scrollHeight;
+    }
+  }
+
+  function appendNewComment(comment) {
+    state.comments.push(comment);
+
+    // Update Spotlight Card
+    updateSpotlight(comment);
+
+    // Audio chime
+    playCommentChime();
+
+    // Check search filter
+    const q = state.searchQuery.trim().toLowerCase();
+    const matches = !q || (
+      (comment.user_name && comment.user_name.toLowerCase().includes(q)) ||
+      (comment.message && comment.message.toLowerCase().includes(q))
+    );
+
+    if (matches) {
+      el.streamEmpty.style.display = 'none';
+      const row = createCommentRowElement(comment, true);
+      
+      const prevLatest = el.streamList.querySelectorAll('.comment-row.is-latest');
+      prevLatest.forEach(r => r.classList.remove('is-latest'));
+
+      if (state.sortOrder === 'newest') {
+        el.streamList.prepend(row);
+      } else {
+        el.streamList.appendChild(row);
+      }
+
+      if (state.autoScroll) {
+        scrollToTarget();
+      }
+    }
+  }
+
+  function updateStatusUI(status, message) {
+    el.statusMessage.textContent = message || '';
+
+    if (status === 'COLLECTING' || status === 'CONNECTING' || status === 'ACCESSING') {
+      state.isCollecting = true;
+      el.liveIndicator.className = 'status-pill status-ongoing';
+      el.liveStatusText.textContent = 'Ongoing';
+      el.btnStart.disabled = true;
+      el.btnStop.disabled = false;
+    } else if (status === 'COMPLETED') {
+      state.isCollecting = false;
+      el.liveIndicator.className = 'status-pill status-done';
+      el.liveStatusText.textContent = 'Done';
+      el.btnStart.disabled = false;
+      el.btnStop.disabled = true;
+      showToast(message || 'Comment collection done!', 'success');
+    } else if (status === 'CANCELLED') {
+      state.isCollecting = false;
+      el.liveIndicator.className = 'status-pill status-stopped';
+      el.liveStatusText.textContent = 'Stopped';
+      el.btnStart.disabled = false;
+      el.btnStop.disabled = true;
+      showToast(message || 'Collection stopped.', 'info');
+    } else if (status === 'ERROR') {
+      state.isCollecting = false;
+      el.liveIndicator.className = 'status-pill status-error';
+      el.liveStatusText.textContent = 'Error';
+      el.btnStart.disabled = false;
+      el.btnStop.disabled = true;
+      showToast(message || 'Error occurred during collection.', 'error');
+    } else {
+      state.isCollecting = false;
+      el.liveIndicator.className = 'status-pill status-ready';
+      el.liveStatusText.textContent = 'Ready';
+      el.btnStart.disabled = false;
+      el.btnStop.disabled = true;
+    }
+  }
+
+  // --- SSE Connection ---
+  function initEventStream() {
+    if (state.eventSource) {
+      state.eventSource.close();
+    }
+
+    state.eventSource = new EventSource(API_BASE + '/api/collect/stream');
+
+    state.eventSource.addEventListener('init', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.stats) updateKpis(data.stats);
+        if (data.comments && Array.isArray(data.comments)) {
+          state.comments = data.comments;
+          renderCommentsList();
+        }
+        if (data.stats && data.stats.latest_comment) {
+          updateSpotlight(data.stats.latest_comment);
+        }
+      } catch (err) {
+        console.error('Error in init event', err);
+      }
+    });
+
+    state.eventSource.addEventListener('comment', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.comment) {
+          appendNewComment(data.comment);
+        }
+        if (data.stats) {
+          updateKpis(data.stats);
+        }
+      } catch (err) {
+        console.error('Error in comment event', err);
+      }
+    });
+
+    state.eventSource.addEventListener('status', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        updateStatusUI(data.status, data.message);
+        if (data.stats) updateKpis(data.stats);
+        if (data.message && data.message.toLowerCase().includes('log in') || data.message && data.message.toLowerCase().includes('login')) {
+          if (el.fbLoginNotice) el.fbLoginNotice.style.display = 'flex';
+          if (el.btnRelogin) el.btnRelogin.style.display = 'inline-flex';
+        }
+      } catch (err) {
+        console.error('Error in status event', err);
+      }
+    });
+
+    state.eventSource.addEventListener('auth', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.logged_in) {
+          onLoginDetected(true);
+        }
+      } catch (err) {}
+    });
+
+    state.eventSource.addEventListener('clear', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        state.comments = [];
+        updateKpis(data.stats);
+        renderCommentsList();
+        el.spotlightAuthor.textContent = 'System Ready';
+        el.spotlightText.textContent = 'Paste your Facebook post URL and click Start Collecting Real Comments.';
+        el.spotlightTime.textContent = 'Waiting to collect...';
+        el.spotlightAvatar.textContent = 'FB';
+        el.spotlightAvatar.style.backgroundColor = '#1877F2';
+      } catch (err) {}
+    });
+
+    state.eventSource.onerror = (err) => {
+      console.warn('SSE stream disconnected, reconnecting in 3s...', err);
+    };
+  }
+
+  // --- Action Handlers ---
+
+  async function handleStart() {
+    const url = (el.postUrl.value || '').trim();
+    const mode = state.selectedMode;
+
+    // Strict validation for real scraper
+    if (mode === 'browser') {
+      if (!url) {
+        showToast('Please paste a Facebook post URL first!', 'error');
+        el.postUrl.focus();
+        el.postUrl.style.borderColor = '#ef4444';
+        setTimeout(() => { el.postUrl.style.borderColor = ''; }, 2000);
+        return;
+      }
+      if (!url.toLowerCase().includes('facebook.com') && !url.toLowerCase().includes('fb.com')) {
+        showToast('The URL must be a valid Facebook link (e.g. facebook.com/...)', 'error');
+        el.postUrl.focus();
+        return;
+      }
+      if (!state.isLoggedIn) {
+        // Quick verification with backend
+        try {
+          const chk = await fetch(API_BASE + '/api/auth/status');
+          const d = await chk.json();
+          if (d.logged_in) {
+            onLoginDetected(false);
+          } else {
+            showToast('Please log in to your Facebook account to access post comments.', 'error');
+            startLoginFlow();
+            return;
+          }
+        } catch (e) {
+          showToast('Please log in to your Facebook account first.', 'error');
+          startLoginFlow();
+          return;
+        }
+      }
+    }
+
+    try {
+      updateStatusUI('CONNECTING', 'Initiating comment extraction...');
+      const resp = await fetch(API_BASE + '/api/collect/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: url,
+          mode: mode,
+          max_comments: 200,
+          speed: 0.25
+        })
+      });
+
+      const res = await resp.json();
+      if (!res.success) {
+        showToast(res.error || 'Failed to start collection.', 'error');
+        updateStatusUI('ERROR', res.error || 'Failed to start collection.');
+      } else {
+        showToast(`Targeting post: ${url.slice(0, 45)}...`, 'info');
+      }
+    } catch (err) {
+      const msg = 'Could not connect to backend server. Please make sure the Comment Absorber server is running (run_web.py).';
+      showToast(msg, 'error');
+      updateStatusUI('ERROR', msg);
+    }
+  }
+
+  async function handleStop() {
+    if (state.collectInterval) {
+      clearInterval(state.collectInterval);
+      state.collectInterval = null;
+    }
+    state.isCollecting = false;
+    updateStatusUI('CANCELLED', 'Collection stopped.');
+    showToast('Collection stopped.', 'info');
+    try {
+      await fetch(API_BASE + '/api/collect/stop', { method: 'POST' });
+    } catch (err) {}
+  }
+
+  async function handleClear() {
+    if (state.comments.length > 0 && !confirm('Clear all collected comments from feed?')) {
+      return;
+    }
+    try {
+      await fetch(API_BASE + '/api/collect/clear', { method: 'POST' });
+      showToast('Feed cleared.', 'info');
+    } catch (err) {
+      state.comments = [];
+      renderCommentsList();
+      updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
+      showToast('Feed cleared.', 'info');
+    }
+  }
+
+  async function handleCollectAnother() {
+    if (state.isCollecting) {
+      try {
+        await fetch(API_BASE + '/api/collect/stop', { method: 'POST' });
+      } catch (e) {}
+    }
+    try {
+      await fetch(API_BASE + '/api/collect/clear', { method: 'POST' });
+    } catch (e) {}
+
+    state.comments = [];
+    state.isCollecting = false;
+    el.postUrl.value = '';
+    renderCommentsList();
+    updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
+
+    el.spotlightAuthor.textContent = 'System Ready';
+    el.spotlightText.textContent = 'Comments absorbed by the system will be displayed here live in real-time as they stream in.';
+    el.spotlightTime.textContent = 'Waiting to collect...';
+    el.spotlightAvatar.textContent = 'FB';
+    el.spotlightAvatar.style.backgroundColor = '#1877f2';
+
+    updateStatusUI('IDLE', 'Ready. Paste your new Facebook post or reel URL and click Start Collecting.');
+    el.postUrl.focus();
+    showToast('Ready for new link! Paste your Facebook post URL.', 'info');
+  }
+
+  function escapeXml(unsafe) {
+    return String(unsafe || '').replace(/[<>&'"]/g, function (c) {
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '\'': return '&apos;';
+        case '"': return '&quot;';
+      }
+    });
+  }
+
+  async function handleExport(format) {
+    if (!state.comments.length) {
+      showToast('No comments to export.', 'error');
+      return;
+    }
+    const sort = state.sortOrder === 'oldest' ? 'oldest' : 'newest';
+    let sortedComments = [...state.comments];
+    if (sort === 'oldest') {
+      sortedComments.sort((a, b) => a.timestamp_raw - b.timestamp_raw);
+    } else {
+      sortedComments.sort((a, b) => b.timestamp_raw - a.timestamp_raw);
+    }
+
+    // Try server endpoint first
+    try {
+      const endpoint = format === 'excel' ? `${API_BASE}/api/export/excel?sort=${sort}` : `${API_BASE}/api/export/csv?sort=${sort}`;
+      const resp = await fetch(endpoint);
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const now = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '_');
+        link.download = format === 'excel' ? `Facebook_Comments_${now}.xlsx` : `Facebook_Comments_${now}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        showToast(`Downloaded ${format.toUpperCase()} spreadsheet!`, 'success');
+        return;
+      }
+    } catch (e) {
+      // Server not reachable (e.g. running on GitHub Pages) -> Fall through to client-side exporter
+    }
+
+    // Universal Client-Side Export (Works 100% on GitHub Pages & Static Hosts)
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '_');
+    if (format === 'csv') {
+      const bom = '\uFEFF';
+      let csvContent = bom + '"User","Comment","Date"\r\n';
+      sortedComments.forEach(c => {
+        const u = '"' + (c.user_name || 'Facebook User').replace(/"/g, '""') + '"';
+        const m = '"' + (c.message || '').replace(/"/g, '""') + '"';
+        const d = '"' + (c.created_time || '').replace(/"/g, '""') + '"';
+        csvContent += `${u},${m},${d}\r\n`;
+      });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Facebook_Comments_${timestamp}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('Downloaded CSV spreadsheet directly!', 'success');
+    } else {
+      // Universal Excel XML Spreadsheet (Opens natively in Microsoft Excel with headers)
+      let xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="11" ss:FontName="Segoe UI"/>
+   <Interior ss:Color="#1877F2" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="Row">
+   <Font ss:Size="10" ss:FontName="Segoe UI"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Facebook Comments">
+  <Table ss:DefaultRowHeight="20">
+   <Column ss:Width="160"/>
+   <Column ss:Width="360"/>
+   <Column ss:Width="140"/>
+   <Row ss:StyleID="Header" ss:Height="26">
+    <Cell><Data ss:Type="String">User</Data></Cell>
+    <Cell><Data ss:Type="String">Comment</Data></Cell>
+    <Cell><Data ss:Type="String">Date</Data></Cell>
+   </Row>`;
+
+      sortedComments.forEach(c => {
+        const u = escapeXml(c.user_name || 'Facebook User');
+        const m = escapeXml(c.message || '');
+        const d = escapeXml(c.created_time || '');
+        xml += `
+   <Row ss:StyleID="Row">
+    <Cell><Data ss:Type="String">${u}</Data></Cell>
+    <Cell><Data ss:Type="String">${m}</Data></Cell>
+    <Cell><Data ss:Type="String">${d}</Data></Cell>
+   </Row>`;
+      });
+
+      xml += `
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+      const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Facebook_Comments_${timestamp}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('Downloaded Excel (.xls) spreadsheet directly!', 'success');
+    }
+  }
+
+  // --- Client-Side Comment Text & HTML Parser ---
+  function parsePastedComments(text) {
+    if (!text || !text.trim()) return [];
+    
+    // Check if HTML was pasted
+    let plain = text;
+    if (text.includes('<div') || text.includes('<span') || text.includes('<p')) {
+      const temp = document.createElement('div');
+      temp.innerHTML = text;
+      const commentEls = temp.querySelectorAll('[aria-label*="Comment by"], [aria-label*="Reply by"], [role="article"]');
+      if (commentEls.length > 0) {
+        const parsed = [];
+        commentEls.forEach(el => {
+          const authorEl = el.querySelector('a[role="link"] span, h3 span, strong');
+          const author = authorEl ? authorEl.textContent.trim() : 'Facebook User';
+          const msgEl = el.querySelector('div[dir="auto"]');
+          const msg = msgEl ? msgEl.textContent.trim() : el.textContent.trim();
+          if (author && msg && msg !== author) {
+            parsed.push({ author, message: msg, time: 'Just now' });
+          }
+        });
+        if (parsed.length > 0) return parsed;
+      }
+      plain = temp.innerText || temp.textContent || text;
+    }
+
+    const lines = plain.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const parsed = [];
+    const badgeWords = /^(Top fan|Author|Follow|Shared by author|Admin|Moderator|Group expert|\d+[smhdw]|yesterday|just now|\d+ (mins?|hours?|days?|weeks?) ago)$/i;
+
+    let currentAuthor = '';
+    let currentMsg = '';
+    let currentTime = 'Just now';
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (badgeWords.test(line)) {
+        if (/(\d+[smhdw]|yesterday|just now|ago)/i.test(line)) {
+          currentTime = line;
+        }
+        continue;
+      }
+
+      const isName = /^[A-Z][a-zA-Z0-9.'\- ]{1,35}$/.test(line) && !line.includes('?') && !line.includes('!') && line.length < 35;
+
+      if (isName && currentAuthor && currentMsg) {
+        parsed.push({ author: currentAuthor, message: currentMsg, time: currentTime });
+        currentAuthor = line;
+        currentMsg = '';
+        currentTime = 'Just now';
+      } else if (!currentAuthor && isName) {
+        currentAuthor = line;
+      } else if (currentAuthor) {
+        currentMsg = currentMsg ? (currentMsg + ' ' + line) : line;
+      } else {
+        parsed.push({ author: 'Facebook User', message: line, time: 'Just now' });
+      }
+    }
+
+    if (currentAuthor && currentMsg) {
+      parsed.push({ author: currentAuthor, message: currentMsg, time: currentTime });
+    }
+
+    return parsed;
+  }
+
+  function startClientSideAbsorption(parsedList) {
+    if (!parsedList || !parsedList.length) {
+      showToast('No valid comments detected in pasted text.', 'error');
+      return;
+    }
+
+    updateStatusUI('COLLECTING', `Absorbing ${parsedList.length} comments...`);
+    state.isCollecting = true;
+    let idx = state.comments.length;
+    let counter = 0;
+    const startTime = Date.now();
+
+    const interval = setInterval(() => {
+      if (counter >= parsedList.length || !state.isCollecting) {
+        clearInterval(interval);
+        updateStatusUI('COMPLETED', `Done! Absorbed ${parsedList.length} comments.`);
+        showToast(`Successfully absorbed ${parsedList.length} comments!`, 'success');
+        return;
+      }
+
+      const item = parsedList[counter];
+      counter++;
+      idx++;
+
+      const avatarColors = ['#1877F2', '#10B981', '#6366F1', '#EC4899', '#F59E0B', '#8B5CF6'];
+      const initials = (item.author || 'FB').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'FB';
+      const color = avatarColors[counter % avatarColors.length];
+
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+      const commentObj = {
+        index: idx,
+        comment_id: 'client_' + Date.now() + '_' + counter,
+        user_name: item.author || 'Facebook User',
+        message: item.message || '',
+        created_time: item.time && item.time !== 'Just now' ? item.time : dateStr,
+        timestamp_raw: Date.now() / 1000,
+        avatar_initials: initials,
+        avatar_color: color
+      };
+
+      appendNewComment(commentObj);
+
+      const elapsed = (Date.now() - startTime) / 1000;
+      const speed = (counter / Math.max(elapsed, 0.1)).toFixed(1);
+      const uniqueCount = new Set(state.comments.map(c => c.user_name)).size;
+      updateKpis({
+        count: state.comments.length,
+        unique_authors: uniqueCount,
+        elapsed_seconds: Math.floor(elapsed),
+        comments_per_sec: parseFloat(speed)
+      });
+    }, 80);
+  }
+
+  // --- Event Listeners Setup ---
+  function setupEventListeners() {
+    // Engine Selector Cards
+    el.engineCards.forEach(card => {
+      card.addEventListener('click', () => {
+        el.engineCards.forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        const radio = card.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+        
+        state.selectedMode = card.dataset.mode;
+        
+        const badgeMap = {
+          browser: '&#9889; Real Facebook Extractor',
+          simulator: '&#127918; Offline Demo / Simulation'
+        };
+        el.engineDisplayBadge.innerHTML = badgeMap[state.selectedMode] || state.selectedMode;
+
+        if (state.selectedMode === 'browser') {
+          el.btnStart.querySelector('span:last-child').textContent = 'Start Collecting Real Comments';
+        } else {
+          el.btnStart.querySelector('span:last-child').textContent = 'Start Demo Simulation';
+        }
+      });
+    });
+
+    // Clear URL button
+    if (el.clearUrlBtn && el.postUrl) {
+      el.clearUrlBtn.addEventListener('click', () => {
+        el.postUrl.value = '';
+        el.postUrl.focus();
+      });
+    }
+
+    // Facebook Login actions
+    if (el.btnLoginPrompt) {
+      el.btnLoginPrompt.addEventListener('click', startLoginFlow);
+    }
+    if (el.btnDismissNotice) {
+      el.btnDismissNotice.addEventListener('click', () => {
+        if (el.fbLoginNotice) el.fbLoginNotice.style.display = 'none';
+      });
+    }
+    if (el.btnRelogin) {
+      el.btnRelogin.addEventListener('click', startLoginFlow);
+    }
+
+    // Sound Chime Toggle
+    if (el.soundToggle) {
+      el.soundToggle.addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        if (el.soundIcon) {
+          el.soundIcon.innerHTML = state.soundEnabled ? '&#128266;' : '&#128263;';
+        }
+        showToast(state.soundEnabled ? 'Chime sound enabled' : 'Chime sound muted', 'info');
+        try {
+          localStorage.setItem('comment_absorber_sound', state.soundEnabled ? '1' : '0');
+        } catch (e) {}
+      });
+    }
+
+    // Auto-scroll Checkbox
+    if (el.autoscrollToggle) {
+      el.autoscrollToggle.addEventListener('change', (e) => {
+        state.autoScroll = e.target.checked;
+        if (state.autoScroll) {
+          scrollToTarget();
+        }
+      });
+    }
+
+    if (el.streamContainer) {
+      el.streamContainer.addEventListener('scroll', () => {
+        if (state.sortOrder === 'newest') {
+          if (el.streamContainer.scrollTop > 50 && state.autoScroll) {
+            state.autoScroll = false;
+            if (el.autoscrollToggle) el.autoscrollToggle.checked = false;
+          }
+        } else {
+          const isNearBottom = (el.streamContainer.scrollHeight - el.streamContainer.scrollTop - el.streamContainer.clientHeight) < 50;
+          if (!isNearBottom && state.autoScroll) {
+            state.autoScroll = false;
+            if (el.autoscrollToggle) el.autoscrollToggle.checked = false;
+          }
+        }
+      });
+    }
+
+    // Sort Toggle Button
+    if (el.sortToggleBtn) {
+      el.sortToggleBtn.addEventListener('click', () => {
+        if (state.sortOrder === 'newest') {
+          state.sortOrder = 'oldest';
+          if (el.sortLabel) el.sortLabel.innerHTML = '&#8593; Oldest First';
+        } else {
+          state.sortOrder = 'newest';
+          if (el.sortLabel) el.sortLabel.innerHTML = '&#8595; Newest First';
+        }
+        renderCommentsList();
+        showToast(`Sorted by ${state.sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}`, 'info');
+      });
+    }
+
+    // Live Search Filter
+    if (el.feedSearch) {
+      el.feedSearch.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        renderCommentsList();
+      });
+    }
+
+    // Main Buttons
+    if (el.btnStart) el.btnStart.addEventListener('click', handleStart);
+    if (el.btnStop) el.btnStop.addEventListener('click', handleStop);
+    if (el.btnCollectAnother) el.btnCollectAnother.addEventListener('click', handleCollectAnother);
+    if (el.btnClear) el.btnClear.addEventListener('click', handleClear);
+    if (el.btnExportExcel) el.btnExportExcel.addEventListener('click', () => handleExport('excel'));
+    if (el.btnExportCsv) el.btnExportCsv.addEventListener('click', () => handleExport('csv'));
+
+    // Direct Paste Modal Listeners
+    if (el.btnPasteModal) {
+      el.btnPasteModal.addEventListener('click', () => {
+        if (el.pasteModal) {
+          el.pasteModal.style.display = 'flex';
+          if (el.pasteInput) el.pasteInput.focus();
+        }
+      });
+    }
+    if (el.btnClosePasteModal) {
+      el.btnClosePasteModal.addEventListener('click', () => {
+        if (el.pasteModal) el.pasteModal.style.display = 'none';
+      });
+    }
+    if (el.btnCancelPaste) {
+      el.btnCancelPaste.addEventListener('click', () => {
+        if (el.pasteModal) el.pasteModal.style.display = 'none';
+      });
+    }
+    if (el.btnDemoTest) {
+      el.btnDemoTest.addEventListener('click', () => {
+        const sampleText = `Maria Santos
+Top fan
+1h
+Mine 1 set please! Available pa po ba with COD delivery? Salamat po!
+
+Juan Dela Cruz
+Author
+45m
+Super legit seller! Received my order in perfect condition. Highly recommended!
+
+Angelica Gomez
+30m
+How much po shipping fee to Cebu City? Interested to order 2 boxes.
+
+Reynaldo Bautista
+12m
+Pa-order po ng 1 piece medium size, cash on delivery po. Thank you!
+
+Kaye Anne Mendoza
+just now
+Ganda ng product! Will definitely order again next week! ✨`;
+        if (el.pasteInput) el.pasteInput.value = sampleText;
+        showToast('Sample comments loaded into box. Click Absorb Comments!', 'info');
+      });
+    }
+    if (el.btnDoPasteAbsorb) {
+      el.btnDoPasteAbsorb.addEventListener('click', () => {
+        const text = el.pasteInput ? el.pasteInput.value : '';
+        if (!text || !text.trim()) {
+          showToast('Please paste comments text or HTML first!', 'error');
+          return;
+        }
+        const parsed = parsePastedComments(text);
+        if (parsed.length === 0) {
+          showToast('Could not parse comments. Make sure text includes author and comment message.', 'error');
+          return;
+        }
+        if (el.pasteModal) el.pasteModal.style.display = 'none';
+        showToast(`Parsed ${parsed.length} comments! Absorbing...`, 'info');
+        startClientSideAbsorption(parsed);
+      });
+    }
+
+    if (el.postUrl) {
+      el.postUrl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          handleStart();
+        }
+      });
+    }
+  }
+
+  // --- Initialization ---
+  function init() {
+    try {
+      const savedSound = localStorage.getItem('comment_absorber_sound');
+      if (savedSound !== null) {
+        state.soundEnabled = (savedSound === '1');
+        el.soundIcon.innerHTML = state.soundEnabled ? '&#128266;' : '&#128263;';
+      }
+    } catch (e) {}
+
+    setupEventListeners();
+    initEventStream();
+    checkFacebookSession();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
+</script>
+</body>
+</html>

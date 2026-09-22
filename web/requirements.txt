@@ -1,0 +1,5 @@
+Flask>=2.2.0
+Flask-Cors>=3.0.10
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+openpyxl>=3.1.0

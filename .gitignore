@@ -1,0 +1,50 @@
+# Environment and credentials
+.env
+.env.local
+*.env
+config.json
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Output Excel files
+output/*.xlsx
+!output/.gitkeep
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+
+# Packaging artifacts
+dist/
+build/
+*.spec
+
+# Browser profiles and private login sessions (Crucial: Never commit Facebook credentials!)
+browser_profile/
+**/browser_profile/
+chrome_user_data/
+**/chrome_user_data/
+*Singleton*
+DevToolsActivePort
+
+# Exports and generated reports
+output/*.xlsx
+output/*.csv
+web/exports/*.xlsx
+web/exports/*.csv
+web/test_output.xlsx
+*.log

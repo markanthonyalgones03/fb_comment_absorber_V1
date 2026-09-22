@@ -1,0 +1,45 @@
+========================================================================
+  FACEBOOK COMMENT COLLECTOR • MACBOOK / macOS SETUP & USAGE GUIDE
+========================================================================
+
+You can run Facebook Comment Collector on any MacBook or macOS computer
+in just a few simple steps!
+
+METHOD 1: Quick 1-Click Launch (Recommended)
+---------------------------------------------
+1. Download or copy this folder to your Mac (e.g. into your Documents or Desktop).
+2. Open the Terminal app on your Mac:
+   (Press Command + Space, type "Terminal", and press Enter).
+3. Navigate into this folder in Terminal:
+   cd path/to/this/folder
+   (Or type "cd " and drag the folder into Terminal).
+4. Run the launcher:
+   chmod +x run_mac.sh
+   ./run_mac.sh
+
+The script will automatically create a virtual environment, install the
+required packages (Selenium, openpyxl, etc.), and launch the app window!
+
+
+METHOD 2: Create a Standalone Mac .app Bundle
+----------------------------------------------
+If you want to build a standalone FacebookCommentCollector.app on your Mac:
+1. In Terminal, navigate to this folder.
+2. Run:
+   python3 build_mac.py
+3. PyInstaller will compile and generate:
+   dist/FacebookCommentCollector.app
+   You can drag this .app into your Mac's Applications folder!
+
+
+HOW TO USE THE APP ON MAC:
+---------------------------
+1. When launched, click "Log In to Facebook in Browser".
+2. A browser window opens — log in to Facebook securely.
+   (Your login session is saved locally on your Mac so you stay logged in).
+3. Paste any Facebook post, video, or reel link.
+4. Click "COLLECT COMMENTS".
+5. The app automatically extracts all comments, replies, exact dates,
+   and names the Excel file with the creator / post author's name!
+6. Click "OPEN EXCEL" or "SAVE AS..." to view your spreadsheet.
+========================================================================
