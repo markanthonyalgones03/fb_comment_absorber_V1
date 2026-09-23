@@ -1608,14 +1608,6 @@ html, body {
           </div>
         </div>
 
-        <!-- Demo Mode Quick Access -->
-        <div style="margin-top: 16px; padding: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-          <div>
-            <div style="font-weight: 600; font-size: 13px;">Test Demo / Simulator Mode</div>
-            <div style="font-size: 11.5px; color: var(--text-muted);">Instantly test live streaming, sorting, and Excel export with realistic sample comments.</div>
-          </div>
-          <button type="button" id="btn-run-demo" class="btn btn-primary" style="padding: 6px 14px; font-size: 12.5px; white-space: nowrap;">Run Demo</button>
-        </div>
       </div>
       <div class="modal-footer">
         <button type="button" id="btn-dismiss-engine-modal" class="btn btn-ghost" style="padding: 6px 14px; font-size: 13px;">Close</button>
@@ -1714,7 +1706,6 @@ html, body {
     btnSaveEngine: document.getElementById('btn-save-engine'),
     inputGraphToken: document.getElementById('input-graph-token'),
     btnSaveToken: document.getElementById('btn-save-token'),
-    btnRunDemo: document.getElementById('btn-run-demo'),
   };
 
   // --- Web Audio Chime ---
@@ -2453,84 +2444,10 @@ html, body {
     updateStatusUI('COLLECTING', `Searching public comments for ${postId}...`);
     await new Promise(r => setTimeout(r, 1500));
 
-    // Notice for restricted/login-gated posts
-    updateStatusUI('IDLE', 'Post requires a Facebook session. Add your Meta Token in Settings, or run Demo Mode.');
-    showToast('Add your Meta Graph Token in Settings (or run Demo Mode) to collect from this post.', 'info');
+    // Notice for cloud backend connection
+    updateStatusUI('IDLE', 'Connect your 24/7 Cloud Scraper URL or add Meta Graph Token in Settings to absorb real comments.');
+    showToast('Connect your Cloud Scraper URL or add Meta Graph Token to absorb real comments.', 'info');
     openEngineModal();
-  }
-
-  // Realistic Simulation / Demo Mode for Public Testing
-  function runDemoMode() {
-    closeEngineModal();
-    state.comments = [];
-    state.isCollecting = true;
-    renderCommentsList();
-    updateStatusUI('COLLECTING', 'Running Demo Stream with realistic Facebook comments...');
-
-    const sampleComments = [
-      { name: "Wilmar Garson Piyal", msg: "Legit seller! Received the package today in good condition. Salamat po!" },
-      { name: "Sergem Archangel", msg: "Interested! Magkano po pag bundle order? May available pa bang stock?" },
-      { name: "Phil Cerwin Malgapo", msg: "Mine 2 sets please. Can you do COD to Quezon City?" },
-      { name: "Marnie Baltazar", msg: "Order arrived in 2 days and the quality is very premium! Highly recommended!" },
-      { name: "James Algecira", msg: "Sent you a direct message for the details. Please check inbox." },
-      { name: "Shanley Nechaldas", msg: "Tagging my friends @Joshua @Nickhael @Jasper order tayo sabay sabay!" },
-      { name: "Nic Lorenzo", msg: "Ganda nito sobra! Worth the price talaga. Thank you seller!" },
-      { name: "Mark Joseph Rapada", msg: "Pwede po ba ipa-reserve for next week? Sakto sa sahod." },
-      { name: "FaFa Donskie Erno", msg: "Up for this! Very responsive and professional seller." },
-      { name: "Edward Bronosa", msg: "Mine 1 set! Looking forward to receiving this." },
-      { name: "Chris Looper Lontoc", msg: "Legit! 5 stars for packaging and fast shipping." },
-      { name: "Yvonne Jenzel Ilagan", msg: "Available pa po ba ito? Looking for size / variant option." },
-      { name: "Albert Ananca", msg: "Super happy with the purchase. Salamat po ulit sa freebie!" },
-      { name: "Adriane Lee Arbitrario", msg: "Smooth transaction from start to finish. Will definitely order again." },
-      { name: "Mikhail De Castro", msg: "Very satisfied customer here! Recommended to all my colleagues." }
-    ];
-
-    const colors = ['#1877F2', '#10B981', '#6366F1', '#EC4899', '#F59E0B', '#8B5CF6', '#06B6D4', '#14B8A6'];
-    const startTime = Date.now();
-    let idx = 0;
-
-    function addNext() {
-      if (!state.isCollecting || idx >= sampleComments.length) {
-        if (state.isCollecting) {
-          updateStatusUI('COMPLETED', `Demo complete! Collected ${sampleComments.length} sample comments. Ready to Export Excel!`);
-        }
-        return;
-      }
-
-      const item = sampleComments[idx];
-      idx++;
-      const initials = item.name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'FB';
-      const color = colors[idx % colors.length];
-
-      const now = new Date();
-      const timeStr = now.toISOString().replace('T', ' ').substring(0, 19);
-
-      const c = {
-        index: idx,
-        comment_id: `demo_${idx}_${Date.now()}`,
-        user_name: item.name,
-        author: item.name,
-        message: item.msg,
-        created_time: timeStr,
-        timestamp_raw: Date.now() / 1000,
-        avatar_color: color,
-        avatar_initials: initials
-      };
-
-      appendNewComment(c);
-
-      const elapsed = (Date.now() - startTime) / 1000;
-      updateKpis({
-        count: idx,
-        unique_authors: idx,
-        elapsed_seconds: elapsed,
-        comments_per_sec: (idx / Math.max(0.1, elapsed)).toFixed(1)
-      });
-
-      setTimeout(addNext, 180);
-    }
-
-    setTimeout(addNext, 120);
   }
 
   async function handleStop() {
@@ -2786,7 +2703,6 @@ html, body {
     if (el.btnDismissEngineModal) el.btnDismissEngineModal.addEventListener('click', closeEngineModal);
     if (el.btnSaveEngine) el.btnSaveEngine.addEventListener('click', saveCustomEngine);
     if (el.btnSaveToken) el.btnSaveToken.addEventListener('click', saveGraphToken);
-    if (el.btnRunDemo) el.btnRunDemo.addEventListener('click', runDemoMode);
     if (el.engineModal) {
       el.engineModal.addEventListener('click', (e) => {
         if (e.target === el.engineModal) closeEngineModal();

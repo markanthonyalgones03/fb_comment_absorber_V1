@@ -1,11 +1,14 @@
 services:
   - type: web
     name: fb-comment-absorber
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python run_web.py
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
       - key: PORT
         value: 10000
+      - key: CHROME_BIN
+        value: /usr/bin/chromium
+      - key: CHROMEDRIVER_PATH
+        value: /usr/bin/chromedriver

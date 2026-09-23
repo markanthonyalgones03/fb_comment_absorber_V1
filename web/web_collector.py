@@ -213,6 +213,15 @@ class RealBrowserCommentCollector(BaseCollector):
             opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
             opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
             opts.add_experimental_option("useAutomationExtension", False)
+
+            if os.environ.get("CHROME_BIN"):
+                opts.binary_location = os.environ["CHROME_BIN"]
+
+            driver_path = os.environ.get("CHROMEDRIVER_PATH")
+            if driver_path and os.path.exists(driver_path):
+                from selenium.webdriver.chrome.service import Service as ChromeService
+                return webdriver.Chrome(service=ChromeService(executable_path=driver_path), options=opts)
+
             return webdriver.Chrome(options=opts)
         except Exception as chrome_err:
             # Fallback to Edge
