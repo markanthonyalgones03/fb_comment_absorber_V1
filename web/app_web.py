@@ -15,6 +15,10 @@ from typing import List, Optional, Dict, Any
 
 from flask import Flask, render_template, request, jsonify, Response, send_file
 from flask_cors import CORS
+# Ensure root directory is on sys.path
+root_dir = Path(__file__).resolve().parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
 
 from web_collector import (
     WebComment,
@@ -48,6 +52,133 @@ def api_network_info():
 
 
 
+class MetaGraphApiCollector:
+    """
+    Collects comments directly from official Meta Graph API v21.0.
+    Communicates server-to-server with Facebook using the server's META_ACCESS_TOKEN.
+    """
+    def __init__(self, access_token: str, on_comment: Any, on_status: Any):
+        self.access_token = access_token
+        self.on_comment = on_comment
+        self.on_status = on_status
+        self.is_cancelled = False
+
+    def cancel(self):
+        self.is_cancelled = True
+
+    def run(self, raw_url: str):
+        self.on_status("CONNECTING", {"message": "Connecting to Meta Graph API..."})
+        try:
+            from app.facebook_api import FacebookApiClient
+            from app.utils import clean_facebook_url
+            from app.models import (
+                AppError,
+                InvalidUrlError,
+                PostNotFoundError,
+                PermissionDeniedError,
+                AuthenticationExpiredError,
+                RateLimitError,
+                NetworkError,
+            )
+
+            client = FacebookApiClient(access_token=self.access_token)
+            clean_url = clean_facebook_url(raw_url)
+            self.on_status("ACCESSING", {"message": "Resolving Facebook post identifier..."})
+            post_id = client.resolve_post_id(clean_url)
+
+            self.on_status("COLLECTING", {"message": f"Fetching comments for post {post_id}..."})
+
+            next_url = None
+            after_cursor = None
+            count = 0
+
+            palette = [
+                "#1877F2", "#10B981", "#6366F1", "#EC4899", 
+                "#F59E0B", "#8B5CF6", "#06B6D4", "#14B8A6"
+            ]
+
+            while not self.is_cancelled:
+                comments, next_url, after_cursor, total_reported = client.get_comments_page(
+                    post_id=post_id,
+                    after_cursor=after_cursor,
+                    next_page_url=next_url,
+                    limit=100
+                )
+
+                if not comments and count == 0:
+                    self.on_status("COMPLETED", {"message": "No comments found on this post (or comments are restricted)."})
+                    return
+
+                for c in comments:
+                    if self.is_cancelled:
+                        break
+                    count += 1
+                    parts = [p for p in (c.user_name or "").split() if p]
+                    if len(parts) >= 2:
+                        initials = (parts[0][0] + parts[1][0]).upper()
+                    elif len(parts) == 1:
+                        initials = parts[0][:2].upper()
+                    else:
+                        initials = "FB"
+                    color = palette[sum(ord(ch) for ch in (c.user_name or "FB")) % len(palette)]
+
+                    created_str = c.created_time.strftime("%Y-%m-%d %H:%M:%S") if hasattr(c.created_time, "strftime") else str(c.created_time or "")
+                    timestamp_raw = c.created_time.timestamp() if hasattr(c.created_time, "timestamp") else time.time()
+
+                    web_comment = WebComment(
+                        index=count,
+                        comment_id=str(c.comment_id),
+                        user_name=c.user_name or "Facebook User",
+                        message=c.message or "",
+                        created_time=created_str,
+                        timestamp_raw=timestamp_raw,
+                        avatar_color=color,
+                        avatar_initials=initials
+                    )
+                    self.on_comment(web_comment)
+
+                if not next_url and not after_cursor:
+                    break
+                if not comments:
+                    break
+
+                time.sleep(0.1)
+
+            if self.is_cancelled:
+                self.on_status("CANCELLED", {"message": f"Collection stopped by user. {count} comments absorbed."})
+            else:
+                self.on_status("COMPLETED", {"message": f"Successfully absorbed {count} comments via Meta Graph API."})
+
+        except PermissionDeniedError:
+            self.on_status("ERROR", {
+                "message": "This post cannot be accessed by the Meta Graph API. Please ensure the post is public and your Meta token has permissions to read comments on this Page or post."
+            })
+        except PostNotFoundError:
+            self.on_status("ERROR", {
+                "message": "Facebook post not found. Please verify the URL and ensure the post is publicly accessible."
+            })
+        except AuthenticationExpiredError:
+            self.on_status("ERROR", {
+                "message": "The Meta Access Token has expired or is invalid. Please update META_ACCESS_TOKEN on the server."
+            })
+        except RateLimitError:
+            self.on_status("ERROR", {
+                "message": "Facebook API rate limit reached. Please wait a few minutes before trying again."
+            })
+        except InvalidUrlError:
+            self.on_status("ERROR", {
+                "message": "Invalid Facebook URL format. Please provide a standard Facebook post, video, or reel link."
+            })
+        except NetworkError as e:
+            self.on_status("ERROR", {
+                "message": f"Network error communicating with Meta Graph API: {str(e)}"
+            })
+        except Exception as e:
+            self.on_status("ERROR", {
+                "message": f"Meta Graph API error: {str(e)}"
+            })
+
+
 class CollectionSession:
     def __init__(self):
         self.lock = threading.RLock()
@@ -61,7 +192,7 @@ class CollectionSession:
         self.start_time: Optional[float] = None
         self.last_comment: Optional[WebComment] = None
         self.event_queues: List[queue.Queue] = []
-        self.mode = "browser"
+        self.mode = "api"
         self.post_url = ""
 
     def add_event_queue(self) -> queue.Queue:
@@ -127,13 +258,13 @@ class CollectionSession:
                 "latest_comment": self.last_comment.to_dict() if self.last_comment else None
             }
 
-    def start(self, url: str, mode: str, max_comments: int = 150, speed: float = 0.25):
+    def start(self, url: str, mode: str = "api", max_comments: int = 150, speed: float = 0.25):
         with self.lock:
             if self.status in ("CONNECTING", "ACCESSING", "COLLECTING"):
                 return False, "Collection is already running."
 
             self.status = "CONNECTING"
-            self.message = "Initializing real comment extraction..."
+            self.message = "Initializing comment extraction..."
             self.comments.clear()
             self.seen_ids.clear()
             self.unique_authors.clear()
@@ -150,20 +281,38 @@ class CollectionSession:
 
         def _worker():
             try:
-                if mode == "browser":
-                    collector = RealBrowserCommentCollector(
-                        on_comment=self.on_new_comment,
-                        on_status=self.on_status_change
-                    )
-                    self.current_collector = collector
-                    collector.run(url)
-                elif mode == "simulator":
+                if mode == "simulator":
                     collector = SimulatorCollector(
                         on_comment=self.on_new_comment,
                         on_status=self.on_status_change
                     )
                     self.current_collector = collector
                     collector.run(url, max_comments=max_comments, speed=speed)
+                elif mode in ("api", "browser"):
+                    # Check for server-side Meta Access Token
+                    from app.config import load_config
+                    cfg = load_config()
+                    token = os.environ.get("META_ACCESS_TOKEN") or cfg.access_token
+                    if token and token.strip():
+                        collector = MetaGraphApiCollector(
+                            access_token=token.strip(),
+                            on_comment=self.on_new_comment,
+                            on_status=self.on_status_change
+                        )
+                        self.current_collector = collector
+                        collector.run(url)
+                    elif mode == "browser":
+                        # Local desktop fallback using browser profile
+                        collector = RealBrowserCommentCollector(
+                            on_comment=self.on_new_comment,
+                            on_status=self.on_status_change
+                        )
+                        self.current_collector = collector
+                        collector.run(url)
+                    else:
+                        self.on_status_change("ERROR", {
+                            "message": "Meta Access Token is not configured on the server. Please set the META_ACCESS_TOKEN environment variable in your cloud deployment settings."
+                        })
                 else:
                     self.on_status_change("ERROR", {"message": f"Unknown mode: {mode}"})
             except Exception as e:
@@ -254,15 +403,73 @@ def api_auth_login():
     return jsonify({"success": True, "message": "Opening Facebook login window in browser..."})
 
 
+@app.route("/api/health", methods=["GET"])
+def api_health():
+    """Health check endpoint for cloud platforms and frontend connectivity test."""
+    return jsonify({
+        "status": "ok",
+        "service": "Comment Absorber API",
+        "timestamp": time.time()
+    })
+
+
+@app.route("/api/admin/status", methods=["GET"])
+def api_admin_status():
+    """Reports server and Meta API connection status without exposing secrets."""
+    from app.config import load_config
+    cfg = load_config()
+    token = os.environ.get("META_ACCESS_TOKEN") or cfg.access_token
+    has_token = bool(token and token.strip())
+    token_preview = f"{token[:6]}...{token[-4:]}" if has_token and len(token) > 12 else ("Configured" if has_token else "Not Configured")
+    return jsonify({
+        "backend_online": True,
+        "meta_token_configured": has_token,
+        "token_preview": token_preview,
+        "api_version": "v21.0"
+    })
+
+
+@app.route("/api/admin/test-token", methods=["POST"])
+def api_test_token():
+    """Tests the server's Meta Access Token (or a provided token) against Graph API."""
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        from app.config import load_config
+        token = os.environ.get("META_ACCESS_TOKEN") or load_config().access_token
+
+    if not token or not token.strip():
+        return jsonify({
+            "success": False,
+            "error": "No Meta Access Token configured on the server. Please set META_ACCESS_TOKEN in environment variables."
+        }), 400
+
+    try:
+        from app.facebook_api import FacebookApiClient
+        client = FacebookApiClient(access_token=token.strip())
+        info = client._get("/me", params={"fields": "id,name"})
+        name = info.get("name", "Authorized Account")
+        acct_id = info.get("id", "N/A")
+        return jsonify({
+            "success": True,
+            "message": f"Connected to Meta Graph API v21.0! Verified account: {name} (ID: {acct_id})."
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Meta Graph API connection failed: {str(e)}"
+        }), 400
+
+
 @app.route("/api/collect/start", methods=["POST"])
 def api_start_collect():
     data = request.get_json() or {}
     url = data.get("url", "").strip()
-    mode = data.get("mode", "browser") # DEFAULT TO REAL BROWSER EXTRACTION
+    mode = data.get("mode", "api") # DEFAULT TO OFFICIAL META GRAPH API
     max_comments = int(data.get("max_comments", 150))
     speed = float(data.get("speed", 0.25))
 
-    if mode == "browser":
+    if mode in ("api", "browser"):
         if not url:
             return jsonify({"success": False, "error": "Please paste a Facebook post URL first."}), 400
         try:

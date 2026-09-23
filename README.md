@@ -142,21 +142,33 @@ Comment Absorber/
 
 ---
 
-## Deployment Modes
+## 24/7 Cloud Deployment (No Personal PC Needed)
 
-| Environment | How It Works | Capabilities |
-| :--- | :--- | :--- |
-| **Local Desktop Studio** (`http://localhost:5000`) | Runs `python run_web.py` locally | Full automated browser scraping, saved Facebook session, direct `.xlsx` export |
-| **GitHub Pages Online Studio** (`*.github.io`) | Static hosting in any browser | Light/Dark theme, universal Direct Paste Mode, live interactive simulator, client-side `.xls` and `.csv` downloads |
+Deploy Comment Absorber to **Render.com** (or Railway) for permanent, free, 24/7 public access from any phone or computer:
+
+1. **Sign in to Render:** Go to [dashboard.render.com](https://dashboard.render.com) and log in with your GitHub account (`markanthonyalgones03`).
+2. **Create Web Service:** Click **New +** > **Web Service** and connect repository `fb_comment_absorber_V1`.
+3. **Environment Variables:**
+   - In **Environment Variables**, add:
+     - `META_ACCESS_TOKEN`: Your Meta Graph API Page or User Access Token (from Meta for Developers / Graph API Explorer).
+4. **Deploy:** Click **Deploy Web Service**.
+   - Render automatically builds the container using `Dockerfile` (with Chromium included) and launches the server.
+   - You receive a permanent HTTPS URL (e.g., `https://fb-comment-absorber.onrender.com`).
+5. **Open on Mobile:**
+   - Open that URL on your iPhone Safari, Android Chrome, or any tablet.
+   - Paste any Facebook post, video, or reel link.
+   - Click **Start Collecting Real Comments**.
+   - Watch real comments stream in real-time and export to Excel (.xlsx) with or without names directly from your device!
 
 ---
 
 ## Running Automated Tests
 
-Run the test suite to verify all modules and parsers:
+Run the full automated test suite (49 tests):
 ```bash
 python -m pytest
 ```
+
 
 All 47 test cases across URL parsing, Excel formatting, API error handling, theme switching, and web collectors pass with 100% compliance.
 

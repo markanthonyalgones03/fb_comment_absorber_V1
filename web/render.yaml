@@ -12,3 +12,6 @@ services:
         value: /usr/bin/chromium
       - key: CHROMEDRIVER_PATH
         value: /usr/bin/chromedriver
+      - key: META_ACCESS_TOKEN
+        sync: false
+

@@ -145,6 +145,20 @@ class TestCommentAbsorberWeb(unittest.TestCase):
         self.assertIn("public_url", data)
         print(f"[+] Verified network info endpoint: {data}")
 
+    def test_07_health_and_admin_endpoints(self):
+        """Verify health check and admin status endpoints."""
+        resp = self.client.get("/api/health")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["status"], "ok")
+
+        admin_resp = self.client.get("/api/admin/status")
+        self.assertEqual(admin_resp.status_code, 200)
+        admin_data = admin_resp.get_json()
+        self.assertTrue(admin_data["backend_online"])
+        self.assertIn("meta_token_configured", admin_data)
+        self.assertEqual(admin_data["api_version"], "v21.0")
+        print(f"[+] Verified health & admin endpoints: {admin_data}")
+
 if __name__ == "__main__":
     unittest.main()
 
