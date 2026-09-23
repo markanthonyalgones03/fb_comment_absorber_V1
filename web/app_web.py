@@ -36,6 +36,17 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Private-Network"] = "true"
     return response
 
+NETWORK_INFO: Dict[str, str] = {
+    "local_url": "http://127.0.0.1:5000",
+    "wifi_url": "",
+    "public_url": "",
+}
+
+@app.route("/api/network/info", methods=["GET"])
+def api_network_info():
+    return jsonify(NETWORK_INFO)
+
+
 
 class CollectionSession:
     def __init__(self):

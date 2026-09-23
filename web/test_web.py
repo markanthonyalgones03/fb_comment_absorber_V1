@@ -127,11 +127,24 @@ class TestCommentAbsorberWeb(unittest.TestCase):
         self.assertIn("data-theme=\"light\"", html)
         self.assertIn("live-indicator", html)
         self.assertIn("btn-export-excel-no-names", html)
+        self.assertIn("btn-engine-modal", html)
+        self.assertIn("engine-modal", html)
         
         # Verify CORS headers
         status_resp = self.client.get("/api/auth/status")
         self.assertEqual(status_resp.headers.get("Access-Control-Allow-Origin"), "*")
         print("\n[+] Verified: Theme toggle, live controls, and CORS headers are active.")
 
+    def test_06_network_info_endpoint(self):
+        """Verify network info endpoint returns required routing structure."""
+        resp = self.client.get("/api/network/info")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("local_url", data)
+        self.assertIn("wifi_url", data)
+        self.assertIn("public_url", data)
+        print(f"[+] Verified network info endpoint: {data}")
+
 if __name__ == "__main__":
     unittest.main()
+

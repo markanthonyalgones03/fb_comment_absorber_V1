@@ -48,3 +48,9 @@ web/exports/*.xlsx
 web/exports/*.csv
 web/test_output.xlsx
 *.log
+
+# Cloudflare Tunnel binary and scratch
+cloudflared.exe
+**/cloudflared.exe
+scratch/
+**/scratch/
