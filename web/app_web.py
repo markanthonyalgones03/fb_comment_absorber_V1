@@ -323,14 +323,16 @@ def api_export_excel():
         return jsonify({"error": "No comments available to export."}), 400
 
     sort_order = request.args.get("sort", "oldest")
+    include_names = request.args.get("include_names", "true").lower() not in ("false", "0", "no")
     exports_dir = Path(__file__).parent / "exports"
     exports_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"Facebook_Comments_{timestamp_str}.xlsx"
+    prefix = "Facebook_Comments" if include_names else "Facebook_Comments_No_Names"
+    filename = f"{prefix}_{timestamp_str}.xlsx"
     file_path = exports_dir / filename
 
-    ExcelReportExporter.export(comments_copy, file_path, sort_order=sort_order)
+    ExcelReportExporter.export(comments_copy, file_path, sort_order=sort_order, include_names=include_names)
 
     return send_file(
         str(file_path.resolve()),

@@ -1202,7 +1202,7 @@ class SimulatorCollector(BaseCollector):
 # --- Excel Exporter ---
 class ExcelReportExporter:
     @staticmethod
-    def export(comments: List[WebComment], output_path: Path, sort_order: str = "oldest") -> Path:
+    def export(comments: List[WebComment], output_path: Path, sort_order: str = "oldest", include_names: bool = True) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -1217,11 +1217,11 @@ class ExcelReportExporter:
         header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
         header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        headers = ["User", "Comment", "Date"]
+        headers = ["User", "Comment", "Date"] if include_names else ["Comment", "Date"]
         ws.append(headers)
         ws.row_dimensions[1].height = 28
 
-        for col in range(1, 4):
+        for col in range(1, len(headers) + 1):
             c = ws.cell(row=1, column=col)
             c.font = header_font
             c.fill = header_fill
@@ -1241,36 +1241,60 @@ class ExcelReportExporter:
             m_clean = sanitize_for_excel(c.message)
             d_clean = sanitize_for_excel(c.created_time)
 
-            ws.append([u_clean, m_clean, d_clean])
-            ws.row_dimensions[row_idx].height = max(22, min(90, 18 * (m_clean.count("\n") + 1)))
+            if include_names:
+                ws.append([u_clean, m_clean, d_clean])
+                ws.row_dimensions[row_idx].height = max(22, min(90, 18 * (m_clean.count("\n") + 1)))
 
-            c_user = ws.cell(row=row_idx, column=1)
-            c_msg = ws.cell(row=row_idx, column=2)
-            c_date = ws.cell(row=row_idx, column=3)
+                c_user = ws.cell(row=row_idx, column=1)
+                c_msg = ws.cell(row=row_idx, column=2)
+                c_date = ws.cell(row=row_idx, column=3)
 
-            c_user.font = body_font
-            c_user.alignment = Alignment(horizontal="left", vertical="top")
-            c_user.border = thin_border
+                c_user.font = body_font
+                c_user.alignment = Alignment(horizontal="left", vertical="top")
+                c_user.border = thin_border
 
-            c_msg.font = body_font
-            c_msg.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-            c_msg.border = thin_border
+                c_msg.font = body_font
+                c_msg.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                c_msg.border = thin_border
 
-            c_date.font = body_font
-            c_date.alignment = Alignment(horizontal="center", vertical="top")
-            c_date.border = thin_border
+                c_date.font = body_font
+                c_date.alignment = Alignment(horizontal="center", vertical="top")
+                c_date.border = thin_border
 
-            if row_idx % 2 == 1:
-                c_user.fill = alt_fill
-                c_msg.fill = alt_fill
-                c_date.fill = alt_fill
+                if row_idx % 2 == 1:
+                    c_user.fill = alt_fill
+                    c_msg.fill = alt_fill
+                    c_date.fill = alt_fill
+            else:
+                ws.append([m_clean, d_clean])
+                ws.row_dimensions[row_idx].height = max(22, min(90, 18 * (m_clean.count("\n") + 1)))
+
+                c_msg = ws.cell(row=row_idx, column=1)
+                c_date = ws.cell(row=row_idx, column=2)
+
+                c_msg.font = body_font
+                c_msg.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                c_msg.border = thin_border
+
+                c_date.font = body_font
+                c_date.alignment = Alignment(horizontal="center", vertical="top")
+                c_date.border = thin_border
+
+                if row_idx % 2 == 1:
+                    c_msg.fill = alt_fill
+                    c_date.fill = alt_fill
 
         ws.freeze_panes = "A2"
-        ws.auto_filter.ref = f"A1:C{max(2, len(sorted_comments) + 1)}"
+        max_col = "C" if include_names else "B"
+        ws.auto_filter.ref = f"A1:{max_col}{max(2, len(sorted_comments) + 1)}"
 
-        ws.column_dimensions["A"].width = 28
-        ws.column_dimensions["B"].width = 65
-        ws.column_dimensions["C"].width = 22
+        if include_names:
+            ws.column_dimensions["A"].width = 28
+            ws.column_dimensions["B"].width = 65
+            ws.column_dimensions["C"].width = 22
+        else:
+            ws.column_dimensions["A"].width = 75
+            ws.column_dimensions["B"].width = 24
 
         wb.save(output_path)
         return output_path

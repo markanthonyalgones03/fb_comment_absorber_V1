@@ -444,6 +444,16 @@ html, body {
   color: #ffffff;
 }
 
+.btn-excel-alt {
+  background: rgba(6, 182, 212, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+}
+.btn-excel-alt:hover:not(:disabled) {
+  background: var(--cyan);
+  color: #ffffff;
+}
+
 .btn-secondary {
   background: var(--bg-subtle);
   border: 1px solid var(--border);
@@ -898,94 +908,6 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Modal Dialog */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
-  z-index: 2500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-
-.modal-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  width: 100%;
-  max-width: 560px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.modal-close {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 24px;
-  cursor: pointer;
-  line-height: 1;
-}
-.modal-close:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.modal-desc {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.45;
-}
-
-.paste-textarea {
-  width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 13.5px;
-  outline: none;
-  resize: vertical;
-}
-.paste-textarea:focus {
-  border-color: var(--border-focus);
-}
-
-.modal-footer {
-  padding: 14px 20px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
 
 /* ==========================================================================
    Mobile Responsiveness Engine — Optimized for All Phones & Tablets
@@ -1102,12 +1024,8 @@ html, body {
     min-height: 40px;
   }
 
-  #btn-paste-modal {
+  #btn-clear {
     grid-column: span 2;
-    background: var(--bg-subtle);
-    border: 1.5px solid var(--cyan);
-    color: var(--cyan);
-    font-weight: 700;
   }
 
   .metrics-grid {
@@ -1189,21 +1107,6 @@ html, body {
   .row-message {
     font-size: 13.5px;
     line-height: 1.45;
-  }
-
-  .modal-card {
-    margin: 8px;
-    max-height: 90vh;
-  }
-
-  .modal-footer {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .modal-footer .btn {
-    flex: 1;
-    min-height: 38px;
   }
 }
 
@@ -1298,18 +1201,14 @@ html, body {
         </div>
 
         <div class="btn-group-secondary">
-          <button type="button" id="btn-paste-modal" class="btn btn-secondary" title="Paste copied Facebook comments directly">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-            <span>Paste Comments Directly</span>
-          </button>
-
-          <button type="button" id="btn-export-excel" class="btn btn-excel" disabled title="Export as Excel spreadsheet">
+          <button type="button" id="btn-export-excel" class="btn btn-excel" disabled title="Export as Excel spreadsheet with commenter names">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>
             <span>Export Excel (.xlsx)</span>
           </button>
 
-          <button type="button" id="btn-export-csv" class="btn btn-secondary" disabled title="Export as CSV file">
-            <span>Export CSV</span>
+          <button type="button" id="btn-export-excel-no-names" class="btn btn-excel-alt" disabled title="Export as Excel spreadsheet without commenter names">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line></svg>
+            <span>Excel without Names</span>
           </button>
 
           <button type="button" id="btn-clear" class="btn btn-ghost" title="Clear feed">
@@ -1434,27 +1333,6 @@ html, body {
     <div>Comment Absorber &bull; Real-Time Facebook Comment Collector</div>
   </footer>
 
-  <!-- Direct Paste Comments Modal (Universal Client-Side Absorption) -->
-  <div id="paste-modal" class="modal-backdrop" style="display:none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title">Paste Facebook Comments Directly</h3>
-        <button type="button" id="btn-close-paste-modal" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-desc">
-          Copy comments directly from any Facebook post (highlight &amp; copy) and paste them below. The system will parse all commenters, messages, and timestamps and stream them live!
-        </p>
-        <textarea id="paste-input" class="paste-textarea" rows="7" placeholder="Paste Facebook comments text or HTML here..."></textarea>
-      </div>
-      <div class="modal-footer">
-        <button type="button" id="btn-demo-test" class="btn btn-ghost" style="margin-right:auto;">Load Sample Comments</button>
-        <button type="button" id="btn-cancel-paste" class="btn btn-ghost">Cancel</button>
-        <button type="button" id="btn-do-paste-absorb" class="btn btn-primary">Absorb Comments</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
@@ -1499,17 +1377,8 @@ html, body {
     btnStop: document.getElementById('btn-stop'),
     btnCollectAnother: document.getElementById('btn-collect-another'),
     btnExportExcel: document.getElementById('btn-export-excel'),
-    btnExportCsv: document.getElementById('btn-export-csv'),
+    btnExportExcelNoNames: document.getElementById('btn-export-excel-no-names'),
     btnClear: document.getElementById('btn-clear'),
-
-    // Direct Paste Modal
-    btnPasteModal: document.getElementById('btn-paste-modal'),
-    pasteModal: document.getElementById('paste-modal'),
-    btnClosePasteModal: document.getElementById('btn-close-paste-modal'),
-    btnCancelPaste: document.getElementById('btn-cancel-paste'),
-    btnDoPasteAbsorb: document.getElementById('btn-do-paste-absorb'),
-    btnDemoTest: document.getElementById('btn-demo-test'),
-    pasteInput: document.getElementById('paste-input'),
     
     statusMessage: document.getElementById('status-message'),
     liveIndicator: document.getElementById('live-indicator'),
@@ -1649,8 +1518,8 @@ html, body {
     el.feedCounter.textContent = Number(stats.count || 0).toLocaleString();
 
     const hasComments = (stats.count || 0) > 0;
-    el.btnExportExcel.disabled = !hasComments;
-    el.btnExportCsv.disabled = !hasComments;
+    if (el.btnExportExcel) el.btnExportExcel.disabled = !hasComments;
+    if (el.btnExportExcelNoNames) el.btnExportExcelNoNames.disabled = !hasComments;
   }
 
   function updateSpotlight(comment) {
@@ -1963,16 +1832,8 @@ html, body {
       // Backend not running (e.g. visiting static GitHub Pages without START_WEB_VERSION.bat)
       // STRICT RULE: NEVER output fake comments!
       state.isCollecting = false;
-      updateStatusUI('IDLE', 'Automated extraction requires running START_WEB_VERSION.bat. Or use Paste Comments Directly below.');
-      showToast('Local engine not detected. Please run START_WEB_VERSION.bat or use Paste Comments Directly.', 'info');
-
-      if (el.pasteModal) {
-        el.pasteModal.style.display = 'flex';
-        if (el.pasteInput) {
-          el.pasteInput.placeholder = `Copy the comments directly from your Facebook post (${url}) and paste them here to absorb real comments...`;
-          el.pasteInput.focus();
-        }
-      }
+      updateStatusUI('IDLE', 'Automated extraction requires running START_WEB_VERSION.bat on your PC.');
+      showToast('Local engine not detected. Please run START_WEB_VERSION.bat on your PC.', 'info');
     }
   }
 
@@ -2034,7 +1895,7 @@ html, body {
     });
   }
 
-  // --- Universal Client-Side Export (Excel .xlsx & CSV) ---
+  // --- Universal Client-Side Export (Excel .xlsx / .xls) ---
   function handleExport(format) {
     if (!state.comments.length) {
       showToast('No comments to export.', 'error');
@@ -2050,29 +1911,10 @@ html, body {
     }
 
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '_');
+    const withoutNames = (format === 'excel-no-names');
 
-    if (format === 'csv') {
-      const bom = '\uFEFF';
-      let csvContent = bom + '"User","Comment","Date"\r\n';
-      sortedComments.forEach(c => {
-        const u = '"' + (c.user_name || 'Facebook User').replace(/"/g, '""') + '"';
-        const m = '"' + (c.message || '').replace(/"/g, '""') + '"';
-        const d = '"' + (c.created_time || '').replace(/"/g, '""') + '"';
-        csvContent += `${u},${m},${d}\r\n`;
-      });
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Facebook_Comments_${timestamp}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      showToast('Downloaded CSV spreadsheet directly!', 'success');
-    } else {
-      // Universal Microsoft Excel XML Spreadsheet Format
-      let xml = `<?xml version="1.0"?>
+    // Universal Microsoft Excel XML Spreadsheet Format
+    let xml = `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -2091,9 +1933,30 @@ html, body {
   </Style>
  </Styles>
  <Worksheet ss:Name="Facebook Comments">
-  <Table ss:DefaultRowHeight="20">
+  <Table ss:DefaultRowHeight="20">`;
+
+    if (withoutNames) {
+      xml += `
+   <Column ss:Width="500"/>
    <Column ss:Width="160"/>
-   <Column ss:Width="360"/>
+   <Row ss:StyleID="Header" ss:Height="26">
+    <Cell><Data ss:Type="String">Comment</Data></Cell>
+    <Cell><Data ss:Type="String">Date</Data></Cell>
+   </Row>`;
+
+      sortedComments.forEach(c => {
+        const m = escapeXml(c.message || '');
+        const d = escapeXml(c.created_time || '');
+        xml += `
+   <Row ss:StyleID="Row">
+    <Cell><Data ss:Type="String">${m}</Data></Cell>
+    <Cell><Data ss:Type="String">${d}</Data></Cell>
+   </Row>`;
+      });
+    } else {
+      xml += `
+   <Column ss:Width="170"/>
+   <Column ss:Width="400"/>
    <Column ss:Width="140"/>
    <Row ss:StyleID="Header" ss:Height="26">
     <Cell><Data ss:Type="String">User</Data></Cell>
@@ -2112,145 +1975,30 @@ html, body {
     <Cell><Data ss:Type="String">${d}</Data></Cell>
    </Row>`;
       });
+    }
 
-      xml += `
+    xml += `
   </Table>
  </Worksheet>
 </Workbook>`;
 
-      const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Facebook_Comments_${timestamp}.xls`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      showToast('Downloaded Excel (.xls) spreadsheet directly!', 'success');
-    }
-  }
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const downloadName = withoutNames 
+      ? `Facebook_Comments_No_Names_${timestamp}.xls` 
+      : `Facebook_Comments_${timestamp}.xls`;
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
-  // --- Client-Side Comment Text & HTML Parser ---
-  function parsePastedComments(text) {
-    if (!text || !text.trim()) return [];
-    
-    // Check if HTML was pasted
-    let plain = text;
-    if (text.includes('<div') || text.includes('<span') || text.includes('<p')) {
-      const temp = document.createElement('div');
-      temp.innerHTML = text;
-      const commentEls = temp.querySelectorAll('[aria-label*="Comment by"], [aria-label*="Reply by"], [role="article"]');
-      if (commentEls.length > 0) {
-        const parsed = [];
-        commentEls.forEach(el => {
-          const authorEl = el.querySelector('a[role="link"] span, h3 span, strong');
-          const author = authorEl ? authorEl.textContent.trim() : 'Facebook User';
-          const msgEl = el.querySelector('div[dir="auto"]');
-          const msg = msgEl ? msgEl.textContent.trim() : el.textContent.trim();
-          if (author && msg && msg !== author) {
-            parsed.push({ author, message: msg, time: 'Just now' });
-          }
-        });
-        if (parsed.length > 0) return parsed;
-      }
-      plain = temp.innerText || temp.textContent || text;
-    }
-
-    const lines = plain.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const parsed = [];
-    const badgeWords = /^(Top fan|Author|Follow|Shared by author|Admin|Moderator|Group expert|\d+[smhdw]|yesterday|just now|\d+ (mins?|hours?|days?|weeks?) ago)$/i;
-
-    let currentAuthor = '';
-    let currentMsg = '';
-    let currentTime = 'Just now';
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (badgeWords.test(line)) {
-        if (/(\d+[smhdw]|yesterday|just now|ago)/i.test(line)) {
-          currentTime = line;
-        }
-        continue;
-      }
-
-      const isName = /^[A-Z][a-zA-Z0-9.'\- ]{1,35}$/.test(line) && !line.includes('?') && !line.includes('!') && line.length < 35;
-
-      if (isName && currentAuthor && currentMsg) {
-        parsed.push({ author: currentAuthor, message: currentMsg, time: currentTime });
-        currentAuthor = line;
-        currentMsg = '';
-        currentTime = 'Just now';
-      } else if (!currentAuthor && isName) {
-        currentAuthor = line;
-      } else if (currentAuthor) {
-        currentMsg = currentMsg ? (currentMsg + ' ' + line) : line;
-      } else {
-        parsed.push({ author: 'Facebook User', message: line, time: 'Just now' });
-      }
-    }
-
-    if (currentAuthor && currentMsg) {
-      parsed.push({ author: currentAuthor, message: currentMsg, time: currentTime });
-    }
-
-    return parsed;
-  }
-
-  function startClientSideAbsorption(parsedList) {
-    if (!parsedList || !parsedList.length) {
-      showToast('No valid comments detected in pasted text.', 'error');
-      return;
-    }
-
-    updateStatusUI('COLLECTING', `Absorbing ${parsedList.length} comments...`);
-    state.isCollecting = true;
-    let idx = state.comments.length;
-    let counter = 0;
-    const startTime = Date.now();
-
-    const interval = setInterval(() => {
-      if (counter >= parsedList.length || !state.isCollecting) {
-        clearInterval(interval);
-        updateStatusUI('COMPLETED', `Done! Absorbed ${parsedList.length} comments.`);
-        showToast(`Successfully absorbed ${parsedList.length} comments!`, 'success');
-        return;
-      }
-
-      const item = parsedList[counter];
-      counter++;
-      idx++;
-
-      const avatarColors = ['#1877F2', '#10B981', '#6366F1', '#EC4899', '#F59E0B', '#8B5CF6'];
-      const initials = (item.author || 'FB').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'FB';
-      const color = avatarColors[counter % avatarColors.length];
-
-      const now = new Date();
-      const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-
-      const commentObj = {
-        index: idx,
-        comment_id: 'client_' + Date.now() + '_' + counter,
-        user_name: item.author || 'Facebook User',
-        message: item.message || '',
-        created_time: item.time && item.time !== 'Just now' ? item.time : dateStr,
-        timestamp_raw: Date.now() / 1000,
-        avatar_initials: initials,
-        avatar_color: color
-      };
-
-      appendNewComment(commentObj);
-
-      const elapsed = (Date.now() - startTime) / 1000;
-      const speed = (counter / Math.max(elapsed, 0.1)).toFixed(1);
-      const uniqueCount = new Set(state.comments.map(c => c.user_name)).size;
-      updateKpis({
-        count: state.comments.length,
-        unique_authors: uniqueCount,
-        elapsed_seconds: Math.floor(elapsed),
-        comments_per_sec: parseFloat(speed)
-      });
-    }, 80);
+    const toastMsg = withoutNames 
+      ? 'Downloaded Excel without names directly!' 
+      : 'Downloaded Excel (.xls) spreadsheet directly!';
+    showToast(toastMsg, 'success');
   }
 
   // --- Event Listeners Setup ---
@@ -2319,71 +2067,7 @@ html, body {
     if (el.btnCollectAnother) el.btnCollectAnother.addEventListener('click', handleCollectAnother);
     if (el.btnClear) el.btnClear.addEventListener('click', handleClear);
     if (el.btnExportExcel) el.btnExportExcel.addEventListener('click', () => handleExport('excel'));
-    if (el.btnExportCsv) el.btnExportCsv.addEventListener('click', () => handleExport('csv'));
-
-    // Direct Paste Modal Listeners
-    if (el.btnPasteModal) {
-      el.btnPasteModal.addEventListener('click', () => {
-        if (el.pasteModal) {
-          el.pasteModal.style.display = 'flex';
-          if (el.pasteInput) el.pasteInput.focus();
-        }
-      });
-    }
-    if (el.btnClosePasteModal) {
-      el.btnClosePasteModal.addEventListener('click', () => {
-        if (el.pasteModal) el.pasteModal.style.display = 'none';
-      });
-    }
-    if (el.btnCancelPaste) {
-      el.btnCancelPaste.addEventListener('click', () => {
-        if (el.pasteModal) el.pasteModal.style.display = 'none';
-      });
-    }
-    if (el.btnDemoTest) {
-      el.btnDemoTest.addEventListener('click', () => {
-        const sampleText = `Maria Santos
-Top fan
-1h
-Mine 1 set please! Available pa po ba with COD delivery? Salamat po!
-
-Juan Dela Cruz
-Author
-45m
-Super legit seller! Received my order in perfect condition. Highly recommended!
-
-Angelica Gomez
-30m
-How much po shipping fee to Cebu City? Interested to order 2 boxes.
-
-Reynaldo Bautista
-12m
-Pa-order po ng 1 piece medium size, cash on delivery po. Thank you!
-
-Kaye Anne Mendoza
-just now
-Ganda ng product! Will definitely order again next week! ✨`;
-        if (el.pasteInput) el.pasteInput.value = sampleText;
-        showToast('Sample comments loaded into box. Click Absorb Comments!', 'info');
-      });
-    }
-    if (el.btnDoPasteAbsorb) {
-      el.btnDoPasteAbsorb.addEventListener('click', () => {
-        const text = el.pasteInput ? el.pasteInput.value : '';
-        if (!text || !text.trim()) {
-          showToast('Please paste comments text or HTML first!', 'error');
-          return;
-        }
-        const parsed = parsePastedComments(text);
-        if (parsed.length === 0) {
-          showToast('Could not parse comments. Make sure text includes author and comment message.', 'error');
-          return;
-        }
-        if (el.pasteModal) el.pasteModal.style.display = 'none';
-        showToast(`Parsed ${parsed.length} comments! Absorbing...`, 'info');
-        startClientSideAbsorption(parsed);
-      });
-    }
+    if (el.btnExportExcelNoNames) el.btnExportExcelNoNames.addEventListener('click', () => handleExport('excel-no-names'));
 
     if (el.postUrl) {
       el.postUrl.addEventListener('keydown', (e) => {

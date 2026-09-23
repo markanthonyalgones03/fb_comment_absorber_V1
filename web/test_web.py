@@ -126,7 +126,7 @@ class TestCommentAbsorberWeb(unittest.TestCase):
         self.assertIn("theme-toggle-btn", html)
         self.assertIn("data-theme=\"light\"", html)
         self.assertIn("live-indicator", html)
-        self.assertIn("btn-paste-modal", html)
+        self.assertIn("btn-export-excel-no-names", html)
         
         # Verify CORS headers
         status_resp = self.client.get("/api/auth/status")
