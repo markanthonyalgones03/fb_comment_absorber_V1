@@ -1,6 +1,7 @@
 """
 Tunnel and Network Manager for Comment Absorber Web Studio.
-Manages local Wi-Fi detection and Cloudflare Tunnel for seamless mobile access.
+Manages local Wi-Fi detection and Cloudflare HTTP/2 Tunnel for rock-solid
+worldwide access from any device (mobile data 4G/5G, foreign networks, or Wi-Fi).
 """
 
 import os
@@ -22,6 +23,8 @@ class TunnelManager:
         self.wifi_ip: str = self.detect_wifi_ip()
         self.root_dir = Path(__file__).resolve().parent.parent
         self.web_dir = Path(__file__).resolve().parent
+        self.log_path = self.web_dir / "tunnel.log"
+        self._stop_event = threading.Event()
 
     def detect_wifi_ip(self) -> str:
         try:
@@ -62,28 +65,39 @@ class TunnelManager:
             return None
 
         try:
-            # Launch cloudflared quick tunnel
-            cmd = [str(exe), "tunnel", "--url", f"http://127.0.0.1:{self.port}"]
+            # Open tunnel log file to avoid pipe buffer deadlocks
+            log_file = open(self.log_path, "w", encoding="utf-8")
+
+            # Launch cloudflared quick tunnel using HTTP/2 protocol (stable on all mobile cellular networks)
+            cmd = [
+                str(exe), "tunnel",
+                "--protocol", "http2",
+                "--url", f"http://127.0.0.1:{self.port}"
+            ]
             self.process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
                 text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             )
 
-            # Monitor stderr for the generated trycloudflare.com URL
+            # Monitor log file for the generated trycloudflare.com URL
             start_time = time.time()
-            while time.time() - start_time < 18:
-                line = self.process.stderr.readline()
-                if not line:
-                    time.sleep(0.1)
+            while time.time() - start_time < 20:
+                time.sleep(0.8)
+                if not self.log_path.exists():
                     continue
-                match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
-                if match:
-                    self.public_url = match.group(0)
-                    self._save_backend_url(self.public_url)
-                    return self.public_url
+                try:
+                    content = self.log_path.read_text(encoding="utf-8", errors="ignore")
+                    match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", content)
+                    if match:
+                        self.public_url = match.group(0)
+                        self._save_backend_url(self.public_url)
+                        self._auto_push_github_async()
+                        return self.public_url
+                except Exception:
+                    pass
 
             return None
         except Exception as e:
@@ -103,7 +117,39 @@ class TunnelManager:
             except Exception:
                 pass
 
+    def _auto_push_github_async(self):
+        """Asynchronously syncs backend_url.json to GitHub repository so GitHub Pages connects automatically."""
+        def push_worker():
+            try:
+                time.sleep(2)
+                git_cmd = r"C:\Program Files\Git\cmd\git.exe"
+                if not os.path.exists(git_cmd):
+                    git_cmd = "git"
+                subprocess.run(
+                    [git_cmd, "add", "backend_url.json", "web/backend_url.json"],
+                    cwd=str(self.root_dir),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                subprocess.run(
+                    [git_cmd, "commit", "-m", "update: sync active live mobile tunnel url"],
+                    cwd=str(self.root_dir),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                subprocess.run(
+                    [git_cmd, "push", "origin", "main"],
+                    cwd=str(self.root_dir),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            except Exception:
+                pass
+
+        threading.Thread(target=push_worker, daemon=True).start()
+
     def stop(self):
+        self._stop_event.set()
         if self.process:
             try:
                 self.process.terminate()
