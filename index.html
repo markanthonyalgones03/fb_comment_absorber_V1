@@ -1644,6 +1644,9 @@ html, body {
     eventSource: null,
     audioCtx: null,
     collectInterval: null,
+    currentStatus: 'IDLE',
+    pollTimer: null,
+    currentBaseUrl: null,
   };
 
   // --- DOM Elements ---
@@ -1940,6 +1943,7 @@ html, body {
   }
 
   function updateStatusUI(status, message) {
+    state.currentStatus = status;
     el.statusMessage.textContent = message || '';
 
     if (status === 'COLLECTING' || status === 'CONNECTING' || status === 'ACCESSING') {
@@ -1948,12 +1952,14 @@ html, body {
       el.liveStatusText.textContent = 'Ongoing';
       el.btnStart.disabled = true;
       el.btnStop.disabled = false;
+      startActivePolling();
     } else if (status === 'COMPLETED') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-done';
       el.liveStatusText.textContent = 'Done';
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
+      stopActivePolling();
       playSuccessChime();
       showToast(message || 'Comment collection complete!', 'success');
     } else if (status === 'CANCELLED') {
@@ -1962,6 +1968,7 @@ html, body {
       el.liveStatusText.textContent = 'Stopped';
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
+      stopActivePolling();
       showToast(message || 'Collection stopped.', 'info');
     } else if (status === 'ERROR') {
       state.isCollecting = false;
@@ -1969,6 +1976,7 @@ html, body {
       el.liveStatusText.textContent = 'Error';
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
+      stopActivePolling();
       showToast(message || 'An error occurred.', 'error');
     } else {
       state.isCollecting = false;
@@ -1976,15 +1984,86 @@ html, body {
       el.liveStatusText.textContent = 'Ready';
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
+      stopActivePolling();
     }
+  }
+
+  // --- Real-Time State Synchronizer (Dual-Sync: SSE + Polling Fallback) ---
+  let isSyncing = false;
+  async function syncWithBackend() {
+    if (isSyncing) return;
+    const target = getApiTarget();
+    if (!target) return;
+    isSyncing = true;
+    try {
+      const res = await fetch(`${target}/api/collect/state`, {
+        signal: AbortSignal.timeout(2800)
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data) return;
+
+      // 1. Sync stats & status
+      if (data.stats) {
+        updateKpis(data.stats);
+        if (data.stats.status && data.stats.status !== state.currentStatus) {
+          updateStatusUI(data.stats.status, data.stats.message);
+        } else if (data.stats.message && el.statusMessage.textContent !== data.stats.message) {
+          el.statusMessage.textContent = data.stats.message;
+        }
+      }
+
+      // 2. Sync comments
+      if (data.comments && Array.isArray(data.comments)) {
+        if (data.comments.length !== state.comments.length) {
+          const existingIds = new Set(state.comments.map(c => c.comment_id));
+          let hasNew = false;
+          for (const c of data.comments) {
+            if (!existingIds.has(c.comment_id)) {
+              hasNew = true;
+              break;
+            }
+          }
+          if (hasNew || (state.comments.length === 0 && data.comments.length > 0)) {
+            state.comments = data.comments;
+            renderCommentsList();
+            if (data.stats && data.stats.latest_comment) {
+              updateSpotlight(data.stats.latest_comment);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Network hiccup gracefully handled
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  function startActivePolling() {
+    if (state.pollTimer) clearInterval(state.pollTimer);
+    syncWithBackend();
+    state.pollTimer = setInterval(syncWithBackend, 1200);
+  }
+
+  function stopActivePolling() {
+    if (state.pollTimer) {
+      clearInterval(state.pollTimer);
+      state.pollTimer = null;
+    }
+    state.pollTimer = setInterval(syncWithBackend, 6000);
   }
 
   // --- Server-Sent Events (SSE) Real-Time Streaming ---
   function initEventStream(baseUrl) {
     if (state.eventSource) {
+      if (state.eventSource.readyState === EventSource.OPEN && state.currentBaseUrl === baseUrl) {
+        return;
+      }
       try { state.eventSource.close(); } catch(e) {}
       state.eventSource = null;
     }
+    state.currentBaseUrl = baseUrl;
 
     try {
       state.eventSource = new EventSource(`${baseUrl}/api/collect/stream`);
@@ -1996,7 +2075,12 @@ html, body {
     state.eventSource.addEventListener('init', (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (data.stats) updateKpis(data.stats);
+        if (data.stats) {
+          updateKpis(data.stats);
+          if (data.stats.status && data.stats.status !== state.currentStatus) {
+            updateStatusUI(data.stats.status, data.stats.message);
+          }
+        }
         if (data.comments && Array.isArray(data.comments) && data.comments.length > 0) {
           state.comments = data.comments;
           renderCommentsList();
@@ -2038,7 +2122,7 @@ html, body {
     });
 
     state.eventSource.onerror = (err) => {
-      // SSE disconnection / reconnection
+      // SSE connection issue - dual-sync active polling seamlessly takes over
     };
   }
 
@@ -2245,6 +2329,7 @@ html, body {
     updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
 
     initEventStream(apiTarget);
+    startActivePolling();
 
     try {
       const startRes = await fetch(`${apiTarget}/api/collect/start`, {
@@ -2274,6 +2359,8 @@ html, body {
 
     state.isCollecting = false;
     updateStatusUI('CANCELLED', 'Collection stopped.');
+    stopActivePolling();
+    syncWithBackend();
     showToast('Collection stopped.', 'info');
   }
 
@@ -2528,6 +2615,9 @@ html, body {
     let apiTarget = await resolveApiTarget();
     if (!apiTarget) return;
 
+    // Immediately sync state so existing comments appear on page load or refresh
+    syncWithBackend();
+
     try {
       const res = await fetch(`${apiTarget}/api/auth/status`, {
         method: 'GET',
@@ -2536,7 +2626,7 @@ html, body {
       if (res.ok) {
         initEventStream(apiTarget);
         const data = await res.json();
-        if (data.logged_in) {
+        if (data.logged_in && state.currentStatus === 'IDLE' && state.comments.length === 0) {
           updateStatusUI('IDLE', 'Facebook account verified! Paste your post link and click Start Collecting Real Comments.');
         }
       }

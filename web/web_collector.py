@@ -402,8 +402,14 @@ class RealBrowserCommentCollector(BaseCollector):
             collected_count = 0
             no_new_cycles = 0
 
-            while no_new_cycles < 12:
+            while True:
                 if self.is_cancelled:
+                    break
+
+                # Dynamic limit: if we already have comments, 3 no-new cycles after scrolling is plenty.
+                # If we have 0 comments, allow up to 5 cycles to give slow connections time to expand.
+                max_no_new = 3 if collected_count > 0 else 5
+                if no_new_cycles >= max_no_new:
                     break
 
                 # Extract comments strictly loaded in DOM (dialog or drawer)
@@ -447,10 +453,18 @@ class RealBrowserCommentCollector(BaseCollector):
                 if newly_found > 0:
                     no_new_cycles = 0
                     self.on_status("COLLECTING", {
-                        "message": f"Gathering comments... ({collected_count} collected so far)"
+                        "message": f"Extracted {collected_count} real comments... Scanning for more."
                     })
                 else:
                     no_new_cycles += 1
+                    if collected_count > 0:
+                        self.on_status("COLLECTING", {
+                            "message": f"Checking for additional comments... ({collected_count} collected, pass {no_new_cycles}/{max_no_new})"
+                        })
+                    else:
+                        self.on_status("COLLECTING", {
+                            "message": f"Scanning post feed for comments... (attempt {no_new_cycles}/{max_no_new})"
+                        })
 
                 # Click "View more comments", "View replies", and expand "... See more"
                 self._click_view_more_comments(self.driver)
@@ -460,7 +474,7 @@ class RealBrowserCommentCollector(BaseCollector):
                 if newly_found > 0:
                     time.sleep(0.25)
                 else:
-                    time.sleep(0.65)
+                    time.sleep(0.5)
 
             if collected_count == 0 and not is_logged_in:
                 self.on_status("ERROR", {
@@ -636,6 +650,22 @@ class RealBrowserCommentCollector(BaseCollector):
     def _open_reel_comments(self, driver: webdriver.Chrome) -> None:
         """Opens the comments drawer on Facebook Reels or videos if not already open."""
         try:
+            opened = driver.execute_script("""
+                const candidates = document.querySelectorAll("div[role='button'], span[role='button'], div[aria-label]");
+                for (let btn of candidates) {
+                    const aria = (btn.getAttribute("aria-label") || "").toLowerCase();
+                    const text = (btn.innerText || btn.textContent || "").toLowerCase();
+                    if ((aria.includes("comment") || aria.includes("komento") || text.includes("comment") || text.includes("komento")) && !aria.includes("write")) {
+                        btn.click();
+                        return true;
+                    }
+                }
+                return false;
+            """)
+            if opened:
+                time.sleep(2.0)
+                return
+
             comment_btns = driver.find_elements(
                 By.XPATH,
                 "//div[@role='button' and (contains(translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'comment') or contains(translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'komento'))] | "

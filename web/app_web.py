@@ -306,23 +306,34 @@ def api_stream():
     """Server-Sent Events endpoint for real-time push streaming to the browser."""
     def event_stream():
         q = session.add_event_queue()
-        init_payload = json.dumps({
-            "stats": session.get_stats_dict(),
-            "comments": [c.to_dict() for c in session.comments[-30:]]
-        })
-        yield f"event: init\ndata: {init_payload}\n\n"
-
         try:
+            with session.lock:
+                stats = session.get_stats_dict()
+                comments = [c.to_dict() for c in session.comments]
+            init_payload = json.dumps({
+                "stats": stats,
+                "comments": comments
+            })
+            yield f"event: init\ndata: {init_payload}\n\n"
+
             while True:
                 try:
-                    msg = q.get(timeout=15.0)
+                    msg = q.get(timeout=4.0)
                     yield msg
                 except queue.Empty:
                     yield ": ping\n\n"
-        except GeneratorExit:
+        except (GeneratorExit, Exception):
+            pass
+        finally:
             session.remove_event_queue(q)
 
-    return Response(event_stream(), mimetype="text/event-stream")
+    resp = Response(event_stream(), mimetype="text/event-stream")
+    resp.headers["Cache-Control"] = "no-cache, no-transform, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    resp.headers["X-Accel-Buffering"] = "no"
+    resp.headers["Connection"] = "keep-alive"
+    return resp
 
 
 @app.route("/api/export/excel", methods=["GET"])
