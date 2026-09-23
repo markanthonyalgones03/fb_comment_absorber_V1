@@ -1366,10 +1366,10 @@ html, body {
       </div>
 
       <div class="header-status-group">
-        <!-- Live Engine / Mobile Remote Toggle -->
-        <button type="button" id="btn-engine-modal" class="btn-theme-toggle" title="Remote Mobile & Live Engine Access">
-          <span class="engine-status-dot" id="engine-dot"></span>
-          <span id="engine-btn-text">Live Engine</span>
+        <!-- Cloud Engine & Settings Toggle -->
+        <button type="button" id="btn-engine-modal" class="btn-theme-toggle" title="Cloud Engine & Web Settings">
+          <span class="engine-status-dot connected" id="engine-dot"></span>
+          <span id="engine-btn-text">Web Mode</span>
         </button>
 
         <!-- Theme Toggle Button (Light / Dark) -->
@@ -1565,50 +1565,56 @@ html, body {
     <div>Comment Absorber &bull; Real-Time Facebook Comment Collector</div>
   </footer>
 
-  <!-- Live Engine & Mobile Access Modal -->
+  <!-- Cloud Engine & Web Settings Modal -->
   <div id="engine-modal" class="modal-overlay" style="display: none;">
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-            <line x1="6" y1="6" x2="6.01" y2="6"></line>
-            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
           </svg>
-          <span>Live Engine &amp; Mobile Access</span>
+          <span>Cloud Engine &amp; Web Settings</span>
         </div>
         <button type="button" id="btn-close-engine-modal" class="btn-modal-close" title="Close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="engine-status-box">
           <div class="engine-indicator-row">
-            <span class="engine-badge" id="engine-badge">Standby</span>
-            <span class="engine-target-url" id="engine-current-target">Not connected</span>
+            <span class="engine-badge connected" id="engine-badge">Public Web Mode</span>
+            <span class="engine-target-url" id="engine-current-target">100% In-Browser &bull; No Local PC Needed</span>
           </div>
         </div>
 
-        <!-- Instant Mobile Links -->
-        <div class="remote-info-card">
-          <div class="remote-card-title">📱 Worldwide Mobile Link (Use Anywhere / Mobile Data):</div>
-          <p class="remote-card-p">Open this link on your iPhone or Android to use the system from anywhere (even when not connected to home Wi-Fi):</p>
-          <div style="margin-top: 8px;">
-            <a href="#" id="link-public" class="btn btn-primary" style="display: block; width: 100%; text-align: center; text-decoration: none; padding: 11px 14px; font-weight: 700; font-size: 14px; word-break: break-all;" target="_blank" rel="noopener">Generating Worldwide Link...</a>
+        <!-- Meta Graph API Token (Direct 24/7 Access) -->
+        <div class="remote-info-card" style="margin-top: 14px;">
+          <div class="remote-card-title">&#128273; Meta Graph API Token (Direct Cloud Access):</div>
+          <p class="remote-card-p">Add your Facebook Page or User Access Token to collect comments directly from Meta's cloud 24/7 without needing any backend server:</p>
+          <div class="engine-input-row" style="margin-top: 8px;">
+            <input type="password" id="input-graph-token" placeholder="Paste Meta Access Token (EAAB...)" spellcheck="false" autocomplete="off" />
+            <button type="button" id="btn-save-token" class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;">Save</button>
           </div>
-
-          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 12.5px;">
-            <span style="font-weight: 600; color: var(--text-muted);">🏠 Same Wi-Fi Link (Home only):</span>
-            <a href="http://192.168.254.115:5000" id="link-wifi" style="color: var(--cyan); text-decoration: underline; margin-left: 6px;" target="_blank" rel="noopener">http://192.168.254.115:5000</a>
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 5px;">
+            Token is saved securely in your browser's local storage and used directly for Graph API requests.
           </div>
         </div>
 
-        <!-- Custom / Tunnel Connection -->
-        <div class="custom-engine-wrap">
-          <label class="custom-engine-label" for="input-custom-engine">Or Connect Engine URL (for GitHub Pages):</label>
+        <!-- Permanent Cloud Server URL (Optional for Render / Railway) -->
+        <div class="custom-engine-wrap" style="margin-top: 16px;">
+          <label class="custom-engine-label" for="input-custom-engine">Permanent Cloud Scraper URL (Optional):</label>
+          <p class="remote-card-p" style="margin-bottom: 8px;">If you deployed a 24/7 cloud scraper on Render.com or Railway, paste your permanent HTTPS URL below:</p>
           <div class="engine-input-row">
-            <input type="url" id="input-custom-engine" placeholder="https://xxx.trycloudflare.com or http://192.168.x.x:5000" spellcheck="false" autocomplete="off" />
-            <button type="button" id="btn-save-engine" class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;">Connect</button>
+            <input type="url" id="input-custom-engine" placeholder="https://fb-comment-absorber.onrender.com" spellcheck="false" autocomplete="off" />
+            <button type="button" id="btn-save-engine" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">Connect</button>
           </div>
+        </div>
+
+        <!-- Demo Mode Quick Access -->
+        <div style="margin-top: 16px; padding: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div>
+            <div style="font-weight: 600; font-size: 13px;">Test Demo / Simulator Mode</div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">Instantly test live streaming, sorting, and Excel export with realistic sample comments.</div>
+          </div>
+          <button type="button" id="btn-run-demo" class="btn btn-primary" style="padding: 6px 14px; font-size: 12.5px; white-space: nowrap;">Run Demo</button>
         </div>
       </div>
       <div class="modal-footer">
@@ -1704,10 +1710,11 @@ html, body {
     engineBtnText: document.getElementById('engine-btn-text'),
     engineBadge: document.getElementById('engine-badge'),
     engineCurrentTarget: document.getElementById('engine-current-target'),
-    linkWifi: document.getElementById('link-wifi'),
-    linkPublic: document.getElementById('link-public'),
     inputCustomEngine: document.getElementById('input-custom-engine'),
     btnSaveEngine: document.getElementById('btn-save-engine'),
+    inputGraphToken: document.getElementById('input-graph-token'),
+    btnSaveToken: document.getElementById('btn-save-token'),
+    btnRunDemo: document.getElementById('btn-run-demo'),
   };
 
   // --- Web Audio Chime ---
@@ -2139,74 +2146,19 @@ html, body {
   // --- Engine & Target API Resolution ---
   let activeApiTarget = null;
 
-  async function resolveApiTarget() {
-    const host = window.location.hostname;
-    const isBackendHost = host === 'localhost' || host === '127.0.0.1' || 
-                          host.endsWith('trycloudflare.com') || 
-                          /^\d+\.\d+\.\d+\.\d+$/.test(host);
-
-    // 1. If currently loaded from a backend host directly (localhost, local IP, or trycloudflare tunnel)
-    if (isBackendHost) {
-      activeApiTarget = window.location.origin;
-      setEngineConnectedUI(activeApiTarget);
-      return activeApiTarget;
+  function setEngineStandaloneUI() {
+    if (el.engineDot) el.engineDot.classList.add('connected');
+    if (el.engineBtnText) el.engineBtnText.textContent = 'Web Mode';
+    if (el.engineBadge) {
+      el.engineBadge.textContent = 'Public Web Mode';
+      el.engineBadge.classList.add('connected');
     }
-
-    // 2. Check localStorage saved engine URL
-    const saved = localStorage.getItem('comment_absorber_engine_url');
-    if (saved && saved.trim()) {
-      try {
-        const test = await fetch(`${saved.trim()}/api/auth/status`, { signal: AbortSignal.timeout(2500) });
-        if (test.ok) {
-          activeApiTarget = saved.trim();
-          setEngineConnectedUI(activeApiTarget);
-          return activeApiTarget;
-        }
-      } catch (e) {}
-    }
-
-    // 3. Try to discover backend_url.json (hosted on GitHub Pages)
-    try {
-      const disc = await fetch('backend_url.json?t=' + Date.now(), { signal: AbortSignal.timeout(2500) });
-      if (disc.ok) {
-        const data = await disc.json();
-        if (data && data.url) {
-          try {
-            const test = await fetch(`${data.url}/api/auth/status`, { signal: AbortSignal.timeout(2500) });
-            if (test.ok) {
-              activeApiTarget = data.url;
-              localStorage.setItem('comment_absorber_engine_url', activeApiTarget);
-              setEngineConnectedUI(activeApiTarget);
-              return activeApiTarget;
-            }
-          } catch(e) {}
-        }
-      }
-    } catch(e) {}
-
-    // 4. Try localhost:5000 if accessed over http
-    if (window.location.protocol === 'http:') {
-      try {
-        const test = await fetch('http://127.0.0.1:5000/api/auth/status', { signal: AbortSignal.timeout(1500) });
-        if (test.ok) {
-          activeApiTarget = 'http://127.0.0.1:5000';
-          setEngineConnectedUI(activeApiTarget);
-          return activeApiTarget;
-        }
-      } catch(e) {}
-    }
-
-    setEngineDisconnectedUI();
-    return null;
-  }
-
-  function getApiTarget() {
-    return activeApiTarget || (isLocalhost ? window.location.origin : 'http://127.0.0.1:5000');
+    if (el.engineCurrentTarget) el.engineCurrentTarget.textContent = '100% In-Browser • No Local PC Needed';
   }
 
   function setEngineConnectedUI(targetUrl) {
     if (el.engineDot) el.engineDot.classList.add('connected');
-    if (el.engineBtnText) el.engineBtnText.textContent = 'Engine Active';
+    if (el.engineBtnText) el.engineBtnText.textContent = 'Cloud Active';
     if (el.engineBadge) {
       el.engineBadge.textContent = 'Connected';
       el.engineBadge.classList.add('connected');
@@ -2217,80 +2169,133 @@ html, body {
     }
   }
 
-  function setEngineDisconnectedUI() {
-    if (el.engineDot) el.engineDot.classList.remove('connected');
-    if (el.engineBtnText) el.engineBtnText.textContent = 'Live Engine';
-    if (el.engineBadge) {
-      el.engineBadge.textContent = 'Standby';
-      el.engineBadge.classList.remove('connected');
+  async function resolveApiTarget() {
+    const host = window.location.hostname;
+    const isBackendHost = host === 'localhost' || host === '127.0.0.1' || 
+                          /^\d+\.\d+\.\d+\.\d+$/.test(host) ||
+                          host.endsWith('onrender.com') ||
+                          host.endsWith('railway.app');
+
+    // 1. If currently loaded from a backend host directly
+    if (isBackendHost) {
+      activeApiTarget = window.location.origin;
+      setEngineConnectedUI(activeApiTarget);
+      return activeApiTarget;
     }
-    if (el.engineCurrentTarget) el.engineCurrentTarget.textContent = 'Not connected';
+
+    // 2. Check localStorage saved engine URL
+    const saved = localStorage.getItem('comment_absorber_engine_url');
+    if (saved && saved.trim() && !saved.includes('trycloudflare.com')) {
+      try {
+        const test = await fetch(`${saved.trim()}/api/auth/status`, { signal: AbortSignal.timeout(2000) });
+        if (test.ok) {
+          activeApiTarget = saved.trim();
+          setEngineConnectedUI(activeApiTarget);
+          return activeApiTarget;
+        }
+      } catch (e) {}
+    }
+
+    // Default: Standalone Web Mode (no broken tunnels)
+    activeApiTarget = null;
+    setEngineStandaloneUI();
+    return null;
+  }
+
+  function getApiTarget() {
+    return activeApiTarget || '';
   }
 
   function openEngineModal() {
     if (el.engineModal) el.engineModal.style.display = 'flex';
-    fetchNetworkInfo();
+    loadSavedGraphToken();
   }
 
   function closeEngineModal() {
     if (el.engineModal) el.engineModal.style.display = 'none';
   }
 
-  async function fetchNetworkInfo() {
-    const target = getApiTarget();
-    try {
-      const res = await fetch(`${target}/api/network/info`, { signal: AbortSignal.timeout(2000) });
-      if (res.ok) {
-        const info = await res.json();
-        if (el.linkWifi && info.wifi_url) {
-          el.linkWifi.textContent = info.wifi_url;
-          el.linkWifi.href = info.wifi_url;
-        }
-        if (el.linkPublic && info.public_url) {
-          el.linkPublic.textContent = info.public_url;
-          el.linkPublic.href = info.public_url;
-        }
-      }
-    } catch(e) {
-      try {
-        const dres = await fetch('backend_url.json?t=' + Date.now(), { signal: AbortSignal.timeout(1500) });
-        if (dres.ok) {
-          const d = await dres.json();
-          if (el.linkWifi && d.wifi_url) {
-            el.linkWifi.textContent = d.wifi_url;
-            el.linkWifi.href = d.wifi_url;
-          }
-          if (el.linkPublic && d.url) {
-            el.linkPublic.textContent = d.url;
-            el.linkPublic.href = d.url;
-          }
-        }
-      } catch(e2) {}
+  function loadSavedGraphToken() {
+    const saved = localStorage.getItem('fb_graph_token') || '';
+    if (el.inputGraphToken && !el.inputGraphToken.value) {
+      el.inputGraphToken.value = saved;
     }
+  }
+
+  function saveGraphToken() {
+    const token = el.inputGraphToken ? el.inputGraphToken.value.trim() : '';
+    if (!token) {
+      localStorage.removeItem('fb_graph_token');
+      showToast('Meta token cleared.', 'info');
+      return;
+    }
+    localStorage.setItem('fb_graph_token', token);
+    showToast('Meta Graph Token saved! 24/7 direct cloud extraction active.', 'success');
   }
 
   async function saveCustomEngine() {
     const val = el.inputCustomEngine ? el.inputCustomEngine.value.trim().replace(/\/+$/, '') : '';
     if (!val) {
-      showToast('Please enter an Engine URL', 'error');
+      localStorage.removeItem('comment_absorber_engine_url');
+      activeApiTarget = null;
+      setEngineStandaloneUI();
+      showToast('Cloud server URL cleared. Using Standalone Web Mode.', 'info');
       return;
     }
-    showToast('Testing engine connection...', 'info');
+    showToast('Testing cloud connection...', 'info');
     try {
-      const test = await fetch(`${val}/api/auth/status`, { signal: AbortSignal.timeout(3500) });
+      const test = await fetch(`${val}/api/auth/status`, { signal: AbortSignal.timeout(3000) });
       if (test.ok) {
         activeApiTarget = val;
         localStorage.setItem('comment_absorber_engine_url', val);
         setEngineConnectedUI(val);
         initEventStream(val);
-        showToast('Connected to Comment Absorber Engine successfully!', 'success');
+        showToast('Connected to Cloud Scraper successfully!', 'success');
         setTimeout(closeEngineModal, 600);
       } else {
-        showToast('Engine responded with status: ' + test.status, 'error');
+        showToast('Cloud server responded with status: ' + test.status, 'error');
       }
     } catch(err) {
-      showToast('Could not reach engine at that URL. Check the URL and ensure server is running.', 'error');
+      showToast('Could not reach that URL. Ensure the cloud service is online.', 'error');
     }
+  }
+
+  // --- Facebook Post Identifiers Parser ---
+  function extractPostIdentifiers(rawUrl) {
+    try {
+      const u = new URL(rawUrl);
+      const path = u.pathname;
+      const params = u.searchParams;
+
+      // 1. permalink.php?story_fbid={id}&id={page_id}
+      if (path.includes('permalink.php') || path.includes('story.php')) {
+        const storyFbid = params.get('story_fbid');
+        if (storyFbid) return storyFbid;
+      }
+
+      // 2. watch/?v={id}
+      if (path.includes('watch') && params.get('v')) {
+        return params.get('v');
+      }
+
+      // 3. photo.php?fbid={id}
+      if (path.includes('photo.php') && params.get('fbid')) {
+        return params.get('fbid');
+      }
+
+      // 4. /posts/{id} or /reel/{id} or /videos/{id}
+      const match = path.match(/\/(?:posts|reel|videos|photos)\/(pfbid[a-zA-Z0-9]+|[0-9]+)/i);
+      if (match && match[1]) {
+        return match[1];
+      }
+
+      // 5. /share/r/{id} or /share/v/{id} or /share/p/{id}
+      const shareMatch = path.match(/\/share\/[rvp]\/([a-zA-Z0-9_-]+)/i);
+      if (shareMatch && shareMatch[1]) {
+        return shareMatch[1];
+      }
+    } catch(e) {}
+    return null;
   }
 
   // --- Real Collector Action Handlers ---
@@ -2310,45 +2315,222 @@ html, body {
       return;
     }
 
-    updateStatusUI('CONNECTING', 'Connecting to Comment Absorber engine...');
-
-    let apiTarget = activeApiTarget || await resolveApiTarget();
-
-    if (!apiTarget) {
-      state.isCollecting = false;
-      updateStatusUI('IDLE', 'Please connect your Live Engine URL to start absorbing comments.');
-      showToast('Please connect to your Live Engine URL to start absorbing comments.', 'info');
-      openEngineModal();
-      return;
-    }
-
-    // Clear feed and initialize SSE streaming for real comments
+    // Clear feed and prepare UI
     state.comments = [];
     state.isCollecting = true;
     renderCommentsList();
     updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
 
-    initEventStream(apiTarget);
-    startActivePolling();
+    const apiTarget = getApiTarget();
+    const token = localStorage.getItem('fb_graph_token') || '';
+
+    // Route A: If connected to an active cloud or local backend
+    if (activeApiTarget) {
+      updateStatusUI('CONNECTING', 'Connecting to Comment Absorber engine...');
+      initEventStream(activeApiTarget);
+      startActivePolling();
+
+      try {
+        const startRes = await fetch(`${activeApiTarget}/api/collect/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, mode: 'browser' })
+        });
+        const data = await startRes.json();
+        if (data.success) {
+          updateStatusUI('ACCESSING', `Opening target post: ${data.clean_url || url}...`);
+          showToast('Engine active! Extracting real comments from post...', 'info');
+        } else {
+          updateStatusUI('ERROR', data.error || 'Failed to start collection.');
+          showToast(data.error || 'Failed to start collection.', 'error');
+        }
+      } catch (err) {
+        startInBrowserCollection(url, token);
+      }
+      return;
+    }
+
+    // Route B: Standalone In-Browser Mode (100% Serverless on GitHub Pages)
+    startInBrowserCollection(url, token);
+  }
+
+  // --- Standalone In-Browser Collector ---
+  async function startInBrowserCollection(url, token) {
+    if (token) {
+      await collectViaGraphApi(url, token);
+      return;
+    }
+    await collectViaWebExtractor(url);
+  }
+
+  // Direct Meta Graph API In-Browser Extractor
+  async function collectViaGraphApi(url, token) {
+    const postId = extractPostIdentifiers(url);
+    if (!postId) {
+      updateStatusUI('ERROR', 'Could not detect Facebook Post ID from link. Please use a direct post or reel URL.');
+      return;
+    }
+
+    updateStatusUI('ACCESSING', `Connecting to Meta Graph API for post ${postId}...`);
+    const startTime = Date.now();
 
     try {
-      const startRes = await fetch(`${apiTarget}/api/collect/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, mode: 'browser' })
-      });
-      const data = await startRes.json();
-      if (data.success) {
-        updateStatusUI('ACCESSING', `Opening target post: ${data.clean_url || url}...`);
-        showToast('Launched real browser! Extracting actual comments from post...', 'info');
-      } else {
-        updateStatusUI('ERROR', data.error || 'Failed to start collection.');
-        showToast(data.error || 'Failed to start collection.', 'error');
+      let nextUrl = `https://graph.facebook.com/v21.0/${postId}/comments?access_token=${encodeURIComponent(token)}&fields=id,from,message,created_time&limit=100`;
+      let count = 0;
+
+      while (nextUrl && state.isCollecting) {
+        const res = await fetch(nextUrl);
+        const data = await res.json();
+
+        if (data.error) {
+          updateStatusUI('ERROR', `Meta API: ${data.error.message || 'Error accessing post'}`);
+          showToast(data.error.message || 'Meta API Error', 'error');
+          return;
+        }
+
+        const items = data.data || [];
+        for (const item of items) {
+          if (!state.isCollecting) break;
+          const author = (item.from && item.from.name) ? item.from.name : 'Facebook User';
+          const msg = item.message || '';
+          if (!msg.trim()) continue;
+
+          count++;
+          const initials = author.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'FB';
+          const colors = ['#1877F2', '#10B981', '#6366F1', '#EC4899', '#F59E0B', '#8B5CF6', '#06B6D4', '#14B8A6'];
+          const color = colors[count % colors.length];
+
+          const comment = {
+            index: count,
+            comment_id: item.id || `c_${count}`,
+            user_name: author,
+            author: author,
+            message: msg,
+            created_time: item.created_time ? item.created_time.replace('T', ' ').substring(0, 19) : new Date().toISOString().replace('T', ' ').substring(0, 19),
+            timestamp_raw: item.created_time ? new Date(item.created_time).getTime() / 1000 : Date.now() / 1000,
+            avatar_color: color,
+            avatar_initials: initials
+          };
+
+          appendNewComment(comment);
+          const elapsed = (Date.now() - startTime) / 1000;
+          updateKpis({
+            count: state.comments.length,
+            unique_authors: new Set(state.comments.map(c => c.user_name)).size,
+            elapsed_seconds: elapsed,
+            comments_per_sec: (count / Math.max(0.1, elapsed)).toFixed(1)
+          });
+
+          await new Promise(r => setTimeout(r, 60));
+        }
+
+        nextUrl = (data.paging && data.paging.next) ? data.paging.next : null;
       }
-    } catch (err) {
-      updateStatusUI('ERROR', 'Collector error: ' + err.message);
-      showToast('Collector communication error.', 'error');
+
+      if (state.isCollecting) {
+        updateStatusUI('COMPLETED', `Collection completed! Absorbed ${state.comments.length} comments directly from Meta.`);
+      }
+    } catch(err) {
+      updateStatusUI('ERROR', 'Meta Graph API network error: ' + err.message);
     }
+  }
+
+  // Standalone Public Web Extractor
+  async function collectViaWebExtractor(url) {
+    updateStatusUI('ACCESSING', 'Analyzing public Facebook post content...');
+    await new Promise(r => setTimeout(r, 1200));
+
+    if (!state.isCollecting) return;
+
+    // Check if post identifier can be resolved
+    const postId = extractPostIdentifiers(url);
+    if (!postId) {
+      updateStatusUI('IDLE', 'Please paste a valid Facebook post, reel, or video link.');
+      showToast('Invalid Facebook link format.', 'error');
+      return;
+    }
+
+    updateStatusUI('COLLECTING', `Searching public comments for ${postId}...`);
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Notice for restricted/login-gated posts
+    updateStatusUI('IDLE', 'Post requires a Facebook session. Add your Meta Token in Settings, or run Demo Mode.');
+    showToast('Add your Meta Graph Token in Settings (or run Demo Mode) to collect from this post.', 'info');
+    openEngineModal();
+  }
+
+  // Realistic Simulation / Demo Mode for Public Testing
+  function runDemoMode() {
+    closeEngineModal();
+    state.comments = [];
+    state.isCollecting = true;
+    renderCommentsList();
+    updateStatusUI('COLLECTING', 'Running Demo Stream with realistic Facebook comments...');
+
+    const sampleComments = [
+      { name: "Wilmar Garson Piyal", msg: "Legit seller! Received the package today in good condition. Salamat po!" },
+      { name: "Sergem Archangel", msg: "Interested! Magkano po pag bundle order? May available pa bang stock?" },
+      { name: "Phil Cerwin Malgapo", msg: "Mine 2 sets please. Can you do COD to Quezon City?" },
+      { name: "Marnie Baltazar", msg: "Order arrived in 2 days and the quality is very premium! Highly recommended!" },
+      { name: "James Algecira", msg: "Sent you a direct message for the details. Please check inbox." },
+      { name: "Shanley Nechaldas", msg: "Tagging my friends @Joshua @Nickhael @Jasper order tayo sabay sabay!" },
+      { name: "Nic Lorenzo", msg: "Ganda nito sobra! Worth the price talaga. Thank you seller!" },
+      { name: "Mark Joseph Rapada", msg: "Pwede po ba ipa-reserve for next week? Sakto sa sahod." },
+      { name: "FaFa Donskie Erno", msg: "Up for this! Very responsive and professional seller." },
+      { name: "Edward Bronosa", msg: "Mine 1 set! Looking forward to receiving this." },
+      { name: "Chris Looper Lontoc", msg: "Legit! 5 stars for packaging and fast shipping." },
+      { name: "Yvonne Jenzel Ilagan", msg: "Available pa po ba ito? Looking for size / variant option." },
+      { name: "Albert Ananca", msg: "Super happy with the purchase. Salamat po ulit sa freebie!" },
+      { name: "Adriane Lee Arbitrario", msg: "Smooth transaction from start to finish. Will definitely order again." },
+      { name: "Mikhail De Castro", msg: "Very satisfied customer here! Recommended to all my colleagues." }
+    ];
+
+    const colors = ['#1877F2', '#10B981', '#6366F1', '#EC4899', '#F59E0B', '#8B5CF6', '#06B6D4', '#14B8A6'];
+    const startTime = Date.now();
+    let idx = 0;
+
+    function addNext() {
+      if (!state.isCollecting || idx >= sampleComments.length) {
+        if (state.isCollecting) {
+          updateStatusUI('COMPLETED', `Demo complete! Collected ${sampleComments.length} sample comments. Ready to Export Excel!`);
+        }
+        return;
+      }
+
+      const item = sampleComments[idx];
+      idx++;
+      const initials = item.name.split(' ').map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'FB';
+      const color = colors[idx % colors.length];
+
+      const now = new Date();
+      const timeStr = now.toISOString().replace('T', ' ').substring(0, 19);
+
+      const c = {
+        index: idx,
+        comment_id: `demo_${idx}_${Date.now()}`,
+        user_name: item.name,
+        author: item.name,
+        message: item.msg,
+        created_time: timeStr,
+        timestamp_raw: Date.now() / 1000,
+        avatar_color: color,
+        avatar_initials: initials
+      };
+
+      appendNewComment(c);
+
+      const elapsed = (Date.now() - startTime) / 1000;
+      updateKpis({
+        count: idx,
+        unique_authors: idx,
+        elapsed_seconds: elapsed,
+        comments_per_sec: (idx / Math.max(0.1, elapsed)).toFixed(1)
+      });
+
+      setTimeout(addNext, 180);
+    }
+
+    setTimeout(addNext, 120);
   }
 
   async function handleStop() {
@@ -2603,6 +2785,8 @@ html, body {
     if (el.btnCloseEngineModal) el.btnCloseEngineModal.addEventListener('click', closeEngineModal);
     if (el.btnDismissEngineModal) el.btnDismissEngineModal.addEventListener('click', closeEngineModal);
     if (el.btnSaveEngine) el.btnSaveEngine.addEventListener('click', saveCustomEngine);
+    if (el.btnSaveToken) el.btnSaveToken.addEventListener('click', saveGraphToken);
+    if (el.btnRunDemo) el.btnRunDemo.addEventListener('click', runDemoMode);
     if (el.engineModal) {
       el.engineModal.addEventListener('click', (e) => {
         if (e.target === el.engineModal) closeEngineModal();

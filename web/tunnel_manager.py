@@ -94,7 +94,6 @@ class TunnelManager:
                     if match:
                         self.public_url = match.group(0)
                         self._save_backend_url(self.public_url)
-                        self._auto_push_github_async()
                         return self.public_url
                 except Exception:
                     pass

@@ -38,33 +38,43 @@
 
 ---
 
-## Quick Start Guide
+## Deployment & Usage Options
 
-### 1. Prerequisites
-- **Python 3.9+** installed on your system.
-- **Google Chrome** or **Microsoft Edge** browser.
+### Option A: 🌐 100% Public Website (GitHub Pages — No PC Server Needed!)
+You can use Comment Absorber directly in your mobile phone or desktop browser anywhere in the world:
+👉 **[Open Live Web App](https://markanthonyalgones03.github.io)**
 
-### 2. Clone the Repository
+- **No installation or local PC server required**: Runs directly in Safari, Chrome, Edge, and Android/iOS.
+- **Direct Meta Graph API Support**: Enter your Meta access token in Settings for direct 24/7 cloud extraction.
+- **Instant Excel Spreadsheet Exports**: Download `.xlsx` spreadsheets (with commenter names or without commenter names) directly to your device.
+- **Demo Mode**: Test real-time streaming, sorting, and Excel exports anytime with one click.
+
+---
+
+### Option B: ☁️ Free 24/7 Cloud Scraper Deployment (Render.com)
+To run the automated headless browser scraper 24/7 in the cloud without keeping your personal computer turned on:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+
+1. Log in to **[Render.com](https://render.com)** (100% free account).
+2. Click **New +** -> **Web Service** -> Connect your GitHub repository `fb_comment_absorber_V1`.
+3. Render automatically reads `render.yaml` and deploys your 24/7 cloud server with a permanent HTTPS URL (e.g. `https://fb-comment-absorber.onrender.com`).
+4. In your GitHub Pages settings, paste your permanent Render URL once—it stays online 24/7 forever!
+
+---
+
+### Option C: 💻 Local Desktop Studio (PC / Laptop)
+For running completely offline or using your local personal Facebook login session:
+
 ```bash
-git clone https://github.com/your-username/comment-absorber.git
-cd comment-absorber
-```
-
-### 3. Install Dependencies
-```bash
+git clone https://github.com/markanthonyalgones03/fb_comment_absorber_V1.git
+cd fb_comment_absorber_V1
 pip install -r requirements.txt
-```
-
-### 4. Run Comment Absorber Web Studio
-```bash
 python run_web.py
 ```
-*Or on Windows, simply double-click `START_WEB_VERSION.bat`.*
+*Or simply double-click `START_WEB_VERSION.bat`.*
 
-Open your web browser and navigate to:
-```
-http://localhost:5000
-```
+Navigate to: `http://localhost:5000`
 
 ---
 
