@@ -1812,104 +1812,80 @@ html, body {
     }
   }
 
-  // --- Rich Authentic Facebook Comments Pool ---
-  const fbCommentsPool = [
-    { author: "Maria Santos", text: "How much po itong item? Location niyo po?", time: "2 mins ago" },
-    { author: "Juan dela Cruz", text: "Interested po! Available pa po ba ito? Sent PM na rin po.", time: "4 mins ago" },
-    { author: "Angelica Reyes", text: "Mine na po! Pa-reserve please. Thank you so much! 🙏", time: "6 mins ago" },
-    { author: "Mark Anthony Algones", text: "Legit seller po ba ito? Asking for my friend. Thanks!", time: "7 mins ago" },
-    { author: "Princess Joy Flores", text: "Location niyo po ma'am/sir? Pwede po bang Cash On Delivery?", time: "9 mins ago" },
-    { author: "Christian Dave Mendoza", text: "Pa-order po ng 2 sets. Pwede bang Lalamove today?", time: "11 mins ago" },
-    { author: "Rosemarie Flores", text: "Very nice quality! Naka-order na ako dati dito. Highly recommended! 👍✨", time: "14 mins ago" },
-    { author: "Kenneth Paul Bautista", text: "Price list po please. Thank you and God bless!", time: "15 mins ago" },
-    { author: "Aileen Garcia", text: "Magkano shipping fee papuntang Cavite area po?", time: "18 mins ago" },
-    { author: "Jerome Ramos", text: "Check your inbox po, sent inquiry for wholesale orders.", time: "20 mins ago" },
-    { author: "Bea Alonzo Fan", text: "Ang ganda naman! Added to my wishlist. Order ako next payday.", time: "22 mins ago" },
-    { author: "Rodel Mendoza", text: "Available pa ba sir? Kukunin ko na po today via Gcash payment.", time: "25 mins ago" },
-    { author: "Clarisse Anne Tan", text: "How to order po? Paano po process ng COD delivery?", time: "27 mins ago" },
-    { author: "Gabriel Santos", text: "Galing ng quality! Received my parcel earlier. Super secured packaging!", time: "30 mins ago" },
-    { author: "Nicole Mae Dizon", text: "Interested! Sent message to your Facebook page po.", time: "32 mins ago" },
-    { author: "Patrick Cruz", text: "Meron po bang discount kapag bulk order (minimum 10 pieces)?", time: "35 mins ago" },
-    { author: "Stephanie Joy Lim", text: "Legit! 5 stars for customer service and fast shipping! ⭐️⭐️⭐️⭐️⭐️", time: "38 mins ago" },
-    { author: "Eduardo Gonzales", text: "Pa-check po ng messenger niyo sir, nag-send na ako ng payment proof.", time: "41 mins ago" },
-    { author: "Catherine Mae Perez", text: "Available pa po ba yung color blue or black? Thanks!", time: "44 mins ago" },
-    { author: "Joshua Miguel Rivera", text: "Got mine today! Sobrang sulit sa presyo. Salamat seller!", time: "48 mins ago" },
-    { author: "Maricel Villanueva", text: "Interested po. Magkano po kapag deliver sa Davao City?", time: "52 mins ago" },
-    { author: "Angelo Gabriel Castro", text: "Mine 1 piece large size please! Details sent via PM.", time: "55 mins ago" },
-    { author: "Rachelle Ann Soriano", text: "Authentic po ba ito? May warranty po ba included?", time: "1 hour ago" },
-    { author: "Daniel John Padilla", text: "Order confirmed na po ba yung sakin? Looking forward to it!", time: "1 hour ago" },
-    { author: "Jennylyn Mercado Fan", text: "Super recommended seller! Will surely order again next month!", time: "1 hour ago" },
-    { author: "Arnel Pineda Jr.", text: "Cash on delivery available nationwide po ba? Thanks.", time: "2 hours ago" },
-    { author: "Liza Soberano Fan", text: "Ang bait ni seller kausap! Very responsive and accommodating.", time: "2 hours ago" },
-    { author: "Francis Lloyd Reyes", text: "Bro check PM, kukuha ako ng 3 sets for our office.", time: "2 hours ago" },
-    { author: "Kaye Anne Fernandez", text: "Mine! Pa-reserve po until tomorrow morning please!", time: "3 hours ago" },
-    { author: "Dexter James Alcantara", text: "How many days bago dumating kapag Metro Manila area?", time: "3 hours ago" },
-    { author: "Kimberly Sue Yap", text: "Super ganda in person! Even better than the photos! ❤️", time: "3 hours ago" },
-    { author: "Ronald Allan Poe", text: "Available pa po ba ito? Willing to pick up today.", time: "4 hours ago" }
-  ];
+  // --- Server-Sent Events (SSE) Real-Time Streaming ---
+  function initEventStream(baseUrl) {
+    if (state.eventSource) {
+      try { state.eventSource.close(); } catch(e) {}
+      state.eventSource = null;
+    }
 
-  // --- Real-Time Browser-Native Absorption Engine ---
-  function startWebCommentAbsorption(postUrl) {
-    if (state.collectInterval) clearInterval(state.collectInterval);
-    state.comments = [];
-    state.isCollecting = true;
-    renderCommentsList();
+    try {
+      state.eventSource = new EventSource(`${baseUrl}/api/collect/stream`);
+    } catch (e) {
+      console.warn('Could not establish EventSource to', baseUrl, e);
+      return;
+    }
 
-    const shortUrl = postUrl.replace(/^https?:\/\/(www\.)?facebook\.com\/?/, '').slice(0, 35) || 'Facebook Post';
-    updateStatusUI('COLLECTING', `Absorbing live comments from post: ${shortUrl}...`);
-    showToast('Connected to Facebook post! Absorbing comments...', 'info');
-
-    let count = 0;
-    const startTime = Date.now();
-    const targetCount = Math.floor(Math.random() * 25) + 45; // 45 to 70 authentic comments
-
-    state.collectInterval = setInterval(() => {
-      if (!state.isCollecting || count >= targetCount) {
-        clearInterval(state.collectInterval);
-        state.collectInterval = null;
-        if (state.isCollecting) {
-          updateStatusUI('COMPLETED', `Done! Absorbed all ${count} comments from target post.`);
-          showToast(`Finished absorbing ${count} comments! Ready to export.`, 'success');
+    state.eventSource.addEventListener('init', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.stats) updateKpis(data.stats);
+        if (data.comments && Array.isArray(data.comments) && data.comments.length > 0) {
+          state.comments = data.comments;
+          renderCommentsList();
         }
-        return;
-      }
+        if (data.stats && data.stats.latest_comment) {
+          updateSpotlight(data.stats.latest_comment);
+        }
+      } catch (err) {}
+    });
 
-      count++;
-      const poolItem = fbCommentsPool[(count - 1) % fbCommentsPool.length];
-      const initials = poolItem.author.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'FB';
-      const colors = ['#1877f2', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#3b82f6'];
-      const color = colors[count % colors.length];
+    state.eventSource.addEventListener('comment', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.comment) {
+          appendNewComment(data.comment);
+        }
+        if (data.stats) {
+          updateKpis(data.stats);
+        }
+      } catch (err) {}
+    });
 
-      const now = new Date(Date.now() - (targetCount - count) * 45000);
-      const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    state.eventSource.addEventListener('status', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        updateStatusUI(data.status, data.message);
+        if (data.stats) updateKpis(data.stats);
+      } catch (err) {}
+    });
 
-      const commentObj = {
-        index: count,
-        comment_id: `fb_${Date.now()}_${count}`,
-        user_name: poolItem.author,
-        message: poolItem.text,
-        created_time: poolItem.time || timeStr,
-        timestamp_raw: now.getTime() / 1000,
-        avatar_initials: initials,
-        avatar_color: color
-      };
+    state.eventSource.addEventListener('clear', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        state.comments = [];
+        updateKpis(data.stats || { count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
+        renderCommentsList();
+        resetSpotlight();
+      } catch (err) {}
+    });
 
-      appendNewComment(commentObj);
-
-      const elapsed = Math.max(0.1, (Date.now() - startTime) / 1000);
-      const cps = (count / elapsed).toFixed(1);
-      const unique = Math.min(count, Math.round(count * 0.88));
-
-      updateKpis({
-        count: count,
-        comments_per_sec: parseFloat(cps),
-        elapsed_seconds: Math.floor(elapsed),
-        unique_authors: unique
-      });
-    }, 110);
+    state.eventSource.onerror = (err) => {
+      // SSE disconnection / reconnection
+    };
   }
 
-  // --- Action Handlers ---
+  function resetSpotlight() {
+    if (el.spotlightAuthor) el.spotlightAuthor.textContent = 'System Ready';
+    if (el.spotlightText) el.spotlightText.textContent = 'Comments absorbed by the system will be displayed here live in real-time as they stream in.';
+    if (el.spotlightTime) el.spotlightTime.textContent = 'Waiting to collect...';
+    if (el.spotlightAvatar) {
+      el.spotlightAvatar.textContent = 'FB';
+      el.spotlightAvatar.style.backgroundColor = '#1877F2';
+    }
+  }
+
+  // --- Real Collector Action Handlers ---
   async function handleStart() {
     const url = (el.postUrl.value || '').trim();
 
@@ -1926,15 +1902,86 @@ html, body {
       return;
     }
 
-    // Direct Web Absorption Engine (Works 100% in browser with zero server errors)
-    startWebCommentAbsorption(url);
+    // Determine target API endpoint
+    let apiTarget = isLocalhost ? window.location.origin : 'http://127.0.0.1:5000';
+    let backendReachable = false;
+
+    updateStatusUI('CONNECTING', 'Connecting to real Comment Absorber engine...');
+
+    try {
+      const testRes = await fetch(`${apiTarget}/api/auth/status`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000)
+      });
+      if (testRes.ok) {
+        backendReachable = true;
+      }
+    } catch (err) {
+      if (isLocalhost) {
+        const altTarget = apiTarget.includes('localhost') ? 'http://127.0.0.1:5000' : 'http://localhost:5000';
+        try {
+          const altRes = await fetch(`${altTarget}/api/auth/status`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(2000)
+          });
+          if (altRes.ok) {
+            apiTarget = altTarget;
+            backendReachable = true;
+          }
+        } catch(e) {}
+      }
+    }
+
+    if (backendReachable) {
+      // Clear feed and initialize SSE streaming for real comments
+      state.comments = [];
+      state.isCollecting = true;
+      renderCommentsList();
+      updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
+
+      initEventStream(apiTarget);
+
+      try {
+        const startRes = await fetch(`${apiTarget}/api/collect/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, mode: 'browser' })
+        });
+        const data = await startRes.json();
+        if (data.success) {
+          updateStatusUI('ACCESSING', `Opening target post: ${data.clean_url || url}...`);
+          showToast('Launched real browser! Extracting actual comments from post...', 'info');
+        } else {
+          updateStatusUI('ERROR', data.error || 'Failed to start collection.');
+          showToast(data.error || 'Failed to start collection.', 'error');
+        }
+      } catch (err) {
+        updateStatusUI('ERROR', 'Collector error: ' + err.message);
+        showToast('Collector communication error.', 'error');
+      }
+    } else {
+      // Backend not running (e.g. visiting static GitHub Pages without START_WEB_VERSION.bat)
+      // STRICT RULE: NEVER output fake comments!
+      state.isCollecting = false;
+      updateStatusUI('IDLE', 'Automated extraction requires running START_WEB_VERSION.bat. Or use Paste Comments Directly below.');
+      showToast('Local engine not detected. Please run START_WEB_VERSION.bat or use Paste Comments Directly.', 'info');
+
+      if (el.pasteModal) {
+        el.pasteModal.style.display = 'flex';
+        if (el.pasteInput) {
+          el.pasteInput.placeholder = `Copy the comments directly from your Facebook post (${url}) and paste them here to absorb real comments...`;
+          el.pasteInput.focus();
+        }
+      }
+    }
   }
 
   async function handleStop() {
-    if (state.collectInterval) {
-      clearInterval(state.collectInterval);
-      state.collectInterval = null;
-    }
+    let apiTarget = isLocalhost ? window.location.origin : 'http://127.0.0.1:5000';
+    try {
+      await fetch(`${apiTarget}/api/collect/stop`, { method: 'POST' });
+    } catch (e) {}
+
     state.isCollecting = false;
     updateStatusUI('CANCELLED', 'Collection stopped.');
     showToast('Collection stopped.', 'info');
@@ -1944,44 +1991,34 @@ html, body {
     if (state.comments.length > 0 && !confirm('Clear all collected comments from feed?')) {
       return;
     }
-    if (state.collectInterval) {
-      clearInterval(state.collectInterval);
-      state.collectInterval = null;
-    }
+    let apiTarget = isLocalhost ? window.location.origin : 'http://127.0.0.1:5000';
+    try {
+      await fetch(`${apiTarget}/api/collect/clear`, { method: 'POST' });
+    } catch (e) {}
+
     state.comments = [];
     state.isCollecting = false;
     renderCommentsList();
     updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
-    
-    el.spotlightAuthor.textContent = 'System Ready';
-    el.spotlightText.textContent = 'Comments absorbed by the system will be displayed here live in real-time as they stream in.';
-    el.spotlightTime.textContent = 'Waiting to collect...';
-    el.spotlightAvatar.textContent = 'FB';
-    el.spotlightAvatar.style.backgroundColor = '#1877F2';
-    
+    resetSpotlight();
     updateStatusUI('IDLE', 'Feed cleared. Ready for new comments.');
     showToast('Feed cleared.', 'info');
   }
 
   async function handleCollectAnother() {
-    if (state.collectInterval) {
-      clearInterval(state.collectInterval);
-      state.collectInterval = null;
-    }
+    let apiTarget = isLocalhost ? window.location.origin : 'http://127.0.0.1:5000';
+    try {
+      await fetch(`${apiTarget}/api/collect/clear`, { method: 'POST' });
+    } catch (e) {}
+
     state.comments = [];
     state.isCollecting = false;
-    el.postUrl.value = '';
+    if (el.postUrl) el.postUrl.value = '';
     renderCommentsList();
     updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
-
-    el.spotlightAuthor.textContent = 'System Ready';
-    el.spotlightText.textContent = 'Comments absorbed by the system will be displayed here live in real-time as they stream in.';
-    el.spotlightTime.textContent = 'Waiting to collect...';
-    el.spotlightAvatar.textContent = 'FB';
-    el.spotlightAvatar.style.backgroundColor = '#1877F2';
-
+    resetSpotlight();
     updateStatusUI('IDLE', 'Ready. Paste your new Facebook post or reel URL and click Start Collecting.');
-    el.postUrl.focus();
+    if (el.postUrl) el.postUrl.focus();
     showToast('Ready for new link! Paste your Facebook post URL.', 'info');
   }
 
@@ -2363,9 +2400,27 @@ Ganda ng product! Will definitely order again next week! ✨`;
   }
 
   // --- Initialization ---
+  async function checkInitialBackendStatus() {
+    let apiTarget = isLocalhost ? window.location.origin : 'http://127.0.0.1:5000';
+    try {
+      const res = await fetch(`${apiTarget}/api/auth/status`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(2500)
+      });
+      if (res.ok) {
+        initEventStream(apiTarget);
+        const data = await res.json();
+        if (data.logged_in) {
+          updateStatusUI('IDLE', 'Facebook account verified! Paste your post link and click Start Collecting Real Comments.');
+        }
+      }
+    } catch (e) {}
+  }
+
   function init() {
     initTheme();
     setupEventListeners();
+    checkInitialBackendStatus();
   }
 
   if (document.readyState === 'loading') {

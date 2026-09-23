@@ -352,6 +352,31 @@ class RealBrowserCommentCollector(BaseCollector):
             # Dismiss cookie consent dialogs ONLY (never click Close on post modal)
             self._dismiss_popups(self.driver)
 
+            # If this is a share URL (/share/p/, /share/v/, /share/r/), wait for redirect
+            if "/share/" in self.driver.current_url.lower():
+                for _ in range(6):
+                    time.sleep(1.0)
+                    if "/share/" not in self.driver.current_url.lower():
+                        break
+
+            # Check if Facebook reports that content is unavailable or deleted
+            try:
+                body_elem = self.driver.find_element(By.TAG_NAME, "body")
+                body_text = body_elem.text if body_elem else ""
+                if any(err_phrase in body_text for err_phrase in [
+                    "This content isn't available right now",
+                    "This page isn't available",
+                    "Content Not Found",
+                    "Hindi available ang content na ito",
+                    "The link you followed may be broken"
+                ]):
+                    self.on_status("ERROR", {
+                        "message": "Facebook Error: 'This content isn't available right now'. The post may be deleted, private to friends/groups, or the share link expired."
+                    })
+                    return
+            except Exception:
+                pass
+
             # If Reel or Video, open comments drawer once
             c_check = self.driver.find_elements(
                 By.XPATH,
@@ -444,6 +469,10 @@ class RealBrowserCommentCollector(BaseCollector):
             elif self.is_cancelled:
                 self.on_status("CANCELLED", {
                     "message": f"Collection stopped by user. Total collected: {collected_count} comments."
+                })
+            elif collected_count == 0:
+                self.on_status("COMPLETED", {
+                    "message": "Collection completed. No comments found on this post (or comments may be turned off)."
                 })
             else:
                 self.on_status("COMPLETED", {
