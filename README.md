@@ -142,35 +142,40 @@ Comment Absorber/
 
 ---
 
-## 24/7 Cloud Deployment (No Personal PC Needed)
+## Multi-User Cloud Architecture (Facebook Login / OAuth 2.0)
 
-Deploy Comment Absorber to **Render.com** (or Railway) for permanent, free, 24/7 public access from any phone or computer:
+Comment Absorber is a **public multi-user web application**:
+- Each visitor logs in with **their own Facebook account** via official Meta OAuth 2.0.
+- Each user's authorized access token is stored securely in a private server session (never in client JS, never in localStorage, never shared).
+- When a user collects comments, the backend queries Meta Graph API using **that specific user's authorized credentials**.
+- Sessions are completely isolated: User A never sees User B's comments or tokens.
 
-1. **Sign in to Render:** Go to [dashboard.render.com](https://dashboard.render.com) and log in with your GitHub account (`markanthonyalgones03`).
-2. **Create Web Service:** Click **New +** > **Web Service** and connect repository `fb_comment_absorber_V1`.
-3. **Environment Variables:**
-   - In **Environment Variables**, add:
-     - `META_ACCESS_TOKEN`: Your Meta Graph API Page or User Access Token (from Meta for Developers / Graph API Explorer).
-4. **Deploy:** Click **Deploy Web Service**.
-   - Render automatically builds the container using `Dockerfile` (with Chromium included) and launches the server.
-   - You receive a permanent HTTPS URL (e.g., `https://fb-comment-absorber.onrender.com`).
-5. **Open on Mobile:**
-   - Open that URL on your iPhone Safari, Android Chrome, or any tablet.
-   - Paste any Facebook post, video, or reel link.
-   - Click **Start Collecting Real Comments**.
-   - Watch real comments stream in real-time and export to Excel (.xlsx) with or without names directly from your device!
+### Environment Variables for Render.com:
+| Variable | Description |
+| :--- | :--- |
+| `META_APP_ID` | Your Meta App ID from [developers.facebook.com](https://developers.facebook.com) |
+| `META_APP_SECRET` | Your Meta App Secret (App Settings ➔ Basic) |
+| `META_REDIRECT_URI` | *(Optional)* e.g. `https://fb-comment-absorber-v1.onrender.com/auth/facebook/callback` |
+| `SESSION_SECRET` | Random secret key for signing session cookies |
+| `PORT` | `10000` |
+
+### Meta App Settings (One-Time Setup):
+In [developers.facebook.com](https://developers.facebook.com) ➔ Your App (`Comment Absorber`):
+1. Go to **Use cases** or **Facebook Login** ➔ **Settings**.
+2. Under **Valid OAuth Redirect URIs**, add:
+   - `https://fb-comment-absorber-v1.onrender.com/auth/facebook/callback`
+3. Save changes.
 
 ---
 
 ## Running Automated Tests
 
-Run the full automated test suite (49 tests):
+Run the full automated test suite (53 tests):
 ```bash
 python -m pytest
 ```
 
-
-All 47 test cases across URL parsing, Excel formatting, API error handling, theme switching, and web collectors pass with 100% compliance.
+All 53 test cases across URL parsing, multi-user session isolation, OAuth state handling, Excel formatting, API error handling, and web collectors pass with 100% compliance.
 
 ---
 

@@ -909,6 +909,173 @@ html, body {
 }
 
 /* ==========================================================================
+   Facebook Auth & Multi-User Header Styles
+   ========================================================================== */
+.auth-header-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-fb-login {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #1877F2;
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 1px 3px rgba(24, 119, 242, 0.35);
+}
+
+.btn-fb-login:hover {
+  background: #166fe5;
+  box-shadow: 0 2px 8px rgba(24, 119, 242, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-fb-login svg {
+  flex-shrink: 0;
+}
+
+.user-profile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  padding: 4px 10px 4px 6px;
+  border-radius: var(--radius-full);
+}
+
+.user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--blue);
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-logout {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.btn-logout:hover {
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Meta API Permission Notice Card */
+.meta-notice-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(24, 119, 242, 0.07);
+  border: 1px solid rgba(24, 119, 242, 0.22);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.meta-notice-card svg {
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+/* Login Prompt Card (When unauthenticated) */
+.login-prompt-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(24, 119, 242, 0.12) 0%, rgba(79, 70, 229, 0.08) 100%);
+  border: 1.5px solid rgba(24, 119, 242, 0.35);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-top: 6px;
+}
+
+.login-prompt-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.login-prompt-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #1877F2;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(24, 119, 242, 0.4);
+}
+
+.login-prompt-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 3px;
+}
+
+.login-prompt-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.btn-facebook-lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1877F2;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(24, 119, 242, 0.4);
+  transition: var(--transition);
+}
+
+.btn-facebook-lg:hover {
+  background: #166fe5;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
    Engine Status & Remote Mobile Modal Styles
    ========================================================================== */
 .engine-status-dot {
@@ -1366,10 +1533,25 @@ html, body {
       </div>
 
       <div class="header-status-group">
-        <!-- Cloud Engine & Settings Toggle -->
-        <button type="button" id="btn-engine-modal" class="btn-theme-toggle" title="Cloud Engine & Web Settings">
+        <!-- Facebook Login / User Profile -->
+        <div id="auth-header-container" class="auth-header-wrap">
+          <a href="/auth/facebook/login" id="btn-login-fb" class="btn-fb-login" title="Log in with your Facebook account">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            <span>Login with Facebook</span>
+          </a>
+          <div id="user-profile-badge" class="user-profile-badge" style="display: none;">
+            <img id="user-avatar-img" class="user-avatar" src="" alt="Avatar" />
+            <span id="user-name-text" class="user-name">Facebook User</span>
+            <button type="button" id="btn-logout" class="btn-logout" title="Log out">Logout</button>
+          </div>
+        </div>
+
+        <!-- Connection Diagnostics / Settings Toggle -->
+        <button type="button" id="btn-engine-modal" class="btn-theme-toggle" title="Diagnostics & Server Status">
           <span class="engine-status-dot connected" id="engine-dot"></span>
-          <span id="engine-btn-text">Web Mode</span>
+          <span id="engine-btn-text">API Online</span>
         </button>
 
         <!-- Theme Toggle Button (Light / Dark) -->
@@ -1390,6 +1572,34 @@ html, body {
 
   <!-- Full-Width Responsive Dashboard Container -->
   <main class="dashboard-container">
+
+    <!-- Meta API Permission & Privacy Notice Banner -->
+    <div class="meta-notice-card">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
+      <span>You can collect comments from Facebook posts that your Facebook account and this application are authorized to access through Meta's API.</span>
+    </div>
+
+    <!-- Login Required Banner (Shown if user is unauthenticated) -->
+    <div id="login-required-banner" class="login-prompt-card" style="display: none;">
+      <div class="login-prompt-content">
+        <div class="login-prompt-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+        </div>
+        <div>
+          <h4 class="login-prompt-title">Facebook Login Required</h4>
+          <p class="login-prompt-desc">Log in with your own Facebook account to start absorbing comments from posts you have permission to access.</p>
+        </div>
+      </div>
+      <a href="/auth/facebook/login" id="btn-login-prompt" class="btn btn-facebook-lg">
+        <span>Login with Facebook</span>
+      </a>
+    </div>
 
     <!-- Top Control Bar Card -->
     <section class="card control-bar-card">
@@ -1565,7 +1775,7 @@ html, body {
     <div>Comment Absorber &bull; Real-Time Facebook Comment Collector</div>
   </footer>
 
-  <!-- Backend & API Settings Modal -->
+  <!-- Diagnostics & Connection Modal -->
   <div id="engine-modal" class="modal-overlay" style="display: none;">
     <div class="modal-card">
       <div class="modal-header">
@@ -1573,7 +1783,7 @@ html, body {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
           </svg>
-          <span>Backend &amp; API Settings</span>
+          <span>Diagnostics &amp; System Status</span>
         </div>
         <button type="button" id="btn-close-engine-modal" class="btn-modal-close" title="Close">&times;</button>
       </div>
@@ -1600,6 +1810,14 @@ html, body {
           </div>
         </div>
 
+        <!-- Current User Authentication Card -->
+        <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Current Authenticated Account</div>
+          <div id="diag-user-status" style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">
+            Not logged in. Click <strong>Login with Facebook</strong> to authorize your account.
+          </div>
+        </div>
+
         <!-- Deployed Cloud Backend URL (For GitHub Pages visitors) -->
         <div class="custom-engine-wrap" style="margin-bottom: 16px;">
           <label class="custom-engine-label" for="input-custom-engine">Deployed Backend Service URL:</label>
@@ -1608,17 +1826,6 @@ html, body {
             <input type="url" id="input-custom-engine" placeholder="https://fb-comment-absorber.onrender.com" spellcheck="false" autocomplete="off" />
             <button type="button" id="btn-save-engine" class="btn btn-primary" style="padding: 8px 16px; font-size: 13px;">Save &amp; Connect</button>
           </div>
-        </div>
-
-        <!-- Optional Meta Access Token Configuration / Test for Admin -->
-        <div class="remote-info-card" style="margin-bottom: 16px;">
-          <div class="remote-card-title">&#128273; Meta Access Token &amp; Connection Test:</div>
-          <p class="remote-card-p">Test connection to Meta Graph API v21.0 using the server's configured <code>META_ACCESS_TOKEN</code> (or test a new token below):</p>
-          <div class="engine-input-row" style="margin-top: 8px;">
-            <input type="password" id="input-test-token" placeholder="Optional: Paste token to test (or leave blank to test server token)" spellcheck="false" autocomplete="off" />
-            <button type="button" id="btn-test-connection" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px; white-space: nowrap;">Test Connection</button>
-          </div>
-          <div id="token-test-feedback" style="font-size: 12px; margin-top: 8px; display: none;"></div>
         </div>
 
         <!-- Optional Simulator Mode (Separate at bottom) -->
@@ -1667,6 +1874,8 @@ html, body {
     currentStatus: 'IDLE',
     pollTimer: null,
     currentBaseUrl: null,
+    isAuthenticated: false,
+    user: null,
   };
 
   // --- DOM Elements ---
@@ -1674,6 +1883,16 @@ html, body {
     postUrl: document.getElementById('post-url'),
     clearUrlBtn: document.getElementById('clear-url-btn'),
     
+    // Facebook Auth Elements
+    btnLoginFb: document.getElementById('btn-login-fb'),
+    userProfileBadge: document.getElementById('user-profile-badge'),
+    userAvatarImg: document.getElementById('user-avatar-img'),
+    userNameText: document.getElementById('user-name-text'),
+    btnLogout: document.getElementById('btn-logout'),
+    loginRequiredBanner: document.getElementById('login-required-banner'),
+    btnLoginPrompt: document.getElementById('btn-login-prompt'),
+    diagUserStatus: document.getElementById('diag-user-status'),
+
     // Theme Toggle
     themeToggleBtn: document.getElementById('theme-toggle-btn'),
     themeIcon: document.getElementById('theme-icon'),
@@ -1730,9 +1949,6 @@ html, body {
     metaStatusDetail: document.getElementById('meta-status-detail'),
     inputCustomEngine: document.getElementById('input-custom-engine'),
     btnSaveEngine: document.getElementById('btn-save-engine'),
-    inputTestToken: document.getElementById('input-test-token'),
-    btnTestConnection: document.getElementById('btn-test-connection'),
-    tokenTestFeedback: document.getElementById('token-test-feedback'),
     btnRunSimulator: document.getElementById('btn-run-simulator'),
   };
 
@@ -2307,51 +2523,82 @@ html, body {
     }
   }
 
-  async function testTokenConnection() {
-    const target = getApiTarget();
-    if (!target) {
-      showToast('Please connect to a backend service first.', 'error');
-      return;
-    }
-    const token = el.inputTestToken ? el.inputTestToken.value.trim() : '';
-    if (el.tokenTestFeedback) {
-      el.tokenTestFeedback.style.display = 'block';
-      el.tokenTestFeedback.style.color = 'var(--text-muted)';
-      el.tokenTestFeedback.textContent = 'Testing connection with Meta Graph API v21.0...';
-    }
+  // --- Facebook Auth Management ---
+  async function checkAuthStatus() {
+    const apiTarget = getApiTarget();
     try {
-      const res = await fetch(`${target}/api/admin/test-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (el.tokenTestFeedback) {
-          el.tokenTestFeedback.style.color = '#10b981';
-          el.tokenTestFeedback.textContent = '✅ ' + data.message;
-        }
-        checkAdminBackendStatus(target);
-        showToast('Meta Graph API connection verified!', 'success');
-      } else {
-        if (el.tokenTestFeedback) {
-          el.tokenTestFeedback.style.color = '#ef4444';
-          el.tokenTestFeedback.textContent = '❌ ' + (data.error || 'Connection test failed.');
-        }
-        showToast(data.error || 'Connection test failed.', 'error');
+      const res = await fetch(`${apiTarget}/api/auth/me`);
+      if (res.ok) {
+        const data = await res.json();
+        state.isAuthenticated = !!data.authenticated;
+        state.user = data.user || null;
+        updateAuthUI();
       }
-    } catch (e) {
-      if (el.tokenTestFeedback) {
-        el.tokenTestFeedback.style.color = '#ef4444';
-        el.tokenTestFeedback.textContent = '❌ Network error connecting to backend: ' + e.message;
+    } catch (e) {}
+  }
+
+  function updateAuthUI() {
+    if (state.isAuthenticated && state.user) {
+      if (el.btnLoginFb) el.btnLoginFb.style.display = 'none';
+      if (el.userProfileBadge) el.userProfileBadge.style.display = 'inline-flex';
+      if (el.userNameText) el.userNameText.textContent = state.user.name || 'Facebook User';
+      if (el.userAvatarImg) {
+        if (state.user.picture) {
+          el.userAvatarImg.src = state.user.picture;
+          el.userAvatarImg.style.display = 'inline-block';
+        } else {
+          el.userAvatarImg.style.display = 'none';
+        }
       }
-      showToast('Could not reach backend test endpoint.', 'error');
+      if (el.loginRequiredBanner) el.loginRequiredBanner.style.display = 'none';
+      if (el.diagUserStatus) {
+        el.diagUserStatus.innerHTML = `🟢 Logged in as <strong>${escapeXml(state.user.name)}</strong> (ID: ${escapeXml(state.user.id)})`;
+      }
+    } else {
+      if (el.btnLoginFb) el.btnLoginFb.style.display = 'inline-flex';
+      if (el.userProfileBadge) el.userProfileBadge.style.display = 'none';
+      if (el.loginRequiredBanner) el.loginRequiredBanner.style.display = 'flex';
+      if (el.diagUserStatus) {
+        el.diagUserStatus.innerHTML = `⚪ Not logged in. Click <strong>Login with Facebook</strong> to authorize your account.`;
+      }
+    }
+  }
+
+  async function handleLogout() {
+    const apiTarget = getApiTarget();
+    try {
+      await fetch(`${apiTarget}/api/auth/logout`, { method: 'POST' });
+    } catch (e) {}
+    state.isAuthenticated = false;
+    state.user = null;
+    updateAuthUI();
+    showToast('Logged out of Facebook successfully.', 'info');
+  }
+
+  function checkUrlAuthParams() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('auth_success')) {
+      showToast('Welcome! You have successfully logged in with Facebook.', 'success');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.has('auth_error')) {
+      const err = params.get('auth_error');
+      showToast('Facebook Login Notice: ' + err, 'error');
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }
 
   // --- Real Collector Action Handlers ---
   async function handleStart() {
     const url = (el.postUrl.value || '').trim();
+
+    if (!state.isAuthenticated) {
+      showToast('Please log in with Facebook first to collect comments.', 'error');
+      if (el.loginRequiredBanner) {
+        el.loginRequiredBanner.style.display = 'flex';
+        el.loginRequiredBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      return;
+    }
 
     if (!url) {
       showToast('Please paste a Facebook post URL first!', 'error');
@@ -2728,12 +2975,14 @@ html, body {
       el.themeToggleBtn.addEventListener('click', toggleTheme);
     }
 
-    // Backend & API Settings Modal Listeners
+    // Logout Button
+    if (el.btnLogout) el.btnLogout.addEventListener('click', handleLogout);
+
+    // Diagnostics Modal Listeners
     if (el.btnEngineModal) el.btnEngineModal.addEventListener('click', openEngineModal);
     if (el.btnCloseEngineModal) el.btnCloseEngineModal.addEventListener('click', closeEngineModal);
     if (el.btnDismissEngineModal) el.btnDismissEngineModal.addEventListener('click', closeEngineModal);
     if (el.btnSaveEngine) el.btnSaveEngine.addEventListener('click', saveCustomEngine);
-    if (el.btnTestConnection) el.btnTestConnection.addEventListener('click', testTokenConnection);
     if (el.btnRunSimulator) el.btnRunSimulator.addEventListener('click', runSimulator);
     if (el.engineModal) {
       el.engineModal.addEventListener('click', (e) => {
@@ -2746,19 +2995,22 @@ html, body {
   async function checkInitialBackendStatus() {
     let apiTarget = await resolveApiTarget();
     if (!apiTarget) {
-      updateStatusUI('IDLE', 'Ready. Paste your Facebook link and click Start Collecting Real Comments.');
+      updateStatusUI('IDLE', 'Ready. Log in with Facebook to start collecting comments.');
       return;
     }
 
     // Immediately sync state so existing comments appear on page load or refresh
     syncWithBackend();
     initEventStream(apiTarget);
+    checkAuthStatus();
   }
 
   function init() {
     initTheme();
     setupEventListeners();
+    checkUrlAuthParams();
     checkInitialBackendStatus();
+    checkAuthStatus();
   }
 
   if (document.readyState === 'loading') {

@@ -12,6 +12,12 @@ services:
         value: /usr/bin/chromium
       - key: CHROMEDRIVER_PATH
         value: /usr/bin/chromedriver
-      - key: META_ACCESS_TOKEN
+      - key: META_APP_ID
         sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_REDIRECT_URI
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
 

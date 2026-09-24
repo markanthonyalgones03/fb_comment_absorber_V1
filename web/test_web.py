@@ -159,6 +159,108 @@ class TestCommentAbsorberWeb(unittest.TestCase):
         self.assertEqual(admin_data["api_version"], "v21.0")
         print(f"[+] Verified health & admin endpoints: {admin_data}")
 
+    def test_08_multi_user_session_isolation(self):
+        """Verify User A and User B have separate sessions and comments do not leak."""
+        # Client A starts collection with simulator
+        self.client.set_cookie("ca_session_id", "session_user_A")
+        resp_a = self.client.post("/api/collect/start", json={
+            "url": "https://www.facebook.com/test/posts/user_a_post",
+            "mode": "simulator",
+            "max_comments": 10,
+            "speed": 0.05
+        })
+        self.assertEqual(resp_a.status_code, 200)
+        time.sleep(0.5)
+
+        state_a = self.client.get("/api/collect/state").get_json()
+        self.assertGreater(state_a["stats"]["count"], 0)
+
+        # Client B connects with different session cookie
+        self.client.set_cookie("ca_session_id", "session_user_B")
+        state_b = self.client.get("/api/collect/state").get_json()
+        # Client B must NOT see Client A's comments!
+        self.assertEqual(state_b["stats"]["count"], 0)
+        self.assertEqual(len(state_b["comments"]), 0)
+        print("\n[+] Verified Multi-User Session Isolation: User A's comments do NOT leak to User B.")
+
+    def test_09_auth_me_and_logout(self):
+        """Verify /api/auth/me reports status and /api/auth/logout invalidates session."""
+        self.client.set_cookie("ca_session_id", "session_user_auth_test")
+        
+        # 1. Initially unauthenticated
+        me_resp = self.client.get("/api/auth/me")
+        self.assertEqual(me_resp.status_code, 200)
+        self.assertFalse(me_resp.get_json()["authenticated"])
+        self.assertIsNone(me_resp.get_json()["user"])
+
+        # 2. Authenticate session directly
+        from app_web import user_manager
+        sess = user_manager.get_or_create("session_user_auth_test")
+        sess.is_authenticated = True
+        sess.user_id = "12345678"
+        sess.user_name = "Maria Clara"
+        sess.user_picture = "https://example.com/pic.jpg"
+        sess.access_token = "SECRET_TOKEN_DO_NOT_EXPOSE"
+
+        me_resp = self.client.get("/api/auth/me")
+        data = me_resp.get_json()
+        self.assertTrue(data["authenticated"])
+        self.assertEqual(data["user"]["name"], "Maria Clara")
+        self.assertEqual(data["user"]["id"], "12345678")
+        # Ensure secret access_token is NEVER exposed in the API response!
+        self.assertNotIn("access_token", data)
+        self.assertNotIn("access_token", data["user"])
+
+        # 3. Logout
+        logout_resp = self.client.post("/api/auth/logout")
+        self.assertEqual(logout_resp.status_code, 200)
+        self.assertTrue(logout_resp.get_json()["success"])
+
+        # 4. Verify unauthenticated after logout
+        me_resp_after = self.client.get("/api/auth/me")
+        self.assertFalse(me_resp_after.get_json()["authenticated"])
+        self.assertIsNone(me_resp_after.get_json()["user"])
+        print("\n[+] Verified Auth Me & Logout: Secret tokens never exposed, session cleanly invalidated.")
+
+    def test_10_collect_without_auth_fails_gracefully(self):
+        """Verify unauthenticated requests in API mode return 401 without looping or crashing."""
+        self.client.set_cookie("ca_session_id", "session_unauth_user")
+        resp = self.client.post("/api/collect/start", json={
+            "url": "https://www.facebook.com/test/posts/99999",
+            "mode": "api"
+        })
+        self.assertEqual(resp.status_code, 401)
+        data = resp.get_json()
+        self.assertEqual(data["status"], "error")
+        self.assertIn("log in with Facebook first", data["message"])
+        print("\n[+] Verified Unauthenticated Collection: Returns clean 401 message without loops.")
+
+    def test_11_meta_permission_denied_message(self):
+        """Verify Meta permission denial outputs exact required message without loops."""
+        from unittest.mock import patch
+        from app.models import PermissionDeniedError
+        from app_web import MetaGraphApiCollector
+
+        status_updates = []
+        def on_status(status, data):
+            status_updates.append((status, data))
+
+        collector = MetaGraphApiCollector(
+            access_token="TEST_TOKEN",
+            on_comment=lambda c: None,
+            on_status=on_status
+        )
+        with patch("app.facebook_api.FacebookApiClient.resolve_post_id", side_effect=PermissionDeniedError("Denied")):
+            collector.run("https://www.facebook.com/PageName/posts/123456")
+
+        self.assertEqual(status_updates[-1][0], "ERROR")
+        self.assertEqual(
+            status_updates[-1][1]["message"],
+            "Meta does not allow this post to be accessed with your current Facebook permissions."
+        )
+        print("\n[+] Verified Meta Permission Denied message: 'Meta does not allow this post to be accessed with your current Facebook permissions.'")
+
+
 if __name__ == "__main__":
     unittest.main()
 

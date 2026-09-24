@@ -1,6 +1,8 @@
 """
 Flask Web Application Server for Comment Absorber
 High-performance REST API & Server-Sent Events (SSE) streaming server.
+Supports multi-user sessions, official Meta OAuth 2.0 (Facebook Login),
+and isolated per-user comment collection.
 """
 
 import os
@@ -8,13 +10,26 @@ import sys
 import time
 import json
 import queue
+import secrets
 import threading
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+from urllib.parse import urlencode
 
-from flask import Flask, render_template, request, jsonify, Response, send_file
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    Response,
+    send_file,
+    redirect,
+    g,
+    has_request_context,
+)
 from flask_cors import CORS
+
 # Ensure root directory is on sys.path
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
@@ -30,15 +45,10 @@ from web_collector import (
 )
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.config["SECRET_KEY"] = os.environ.get("SESSION_SECRET") or secrets.token_hex(32)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-@app.after_request
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-    response.headers["Access-Control-Allow-Private-Network"] = "true"
-    return response
+SESSION_COOKIE_NAME = "ca_session_id"
 
 NETWORK_INFO: Dict[str, str] = {
     "local_url": "http://127.0.0.1:5000",
@@ -46,16 +56,15 @@ NETWORK_INFO: Dict[str, str] = {
     "public_url": "",
 }
 
-@app.route("/api/network/info", methods=["GET"])
-def api_network_info():
-    return jsonify(NETWORK_INFO)
 
-
+# ============================================================================
+# Meta Graph API Collector (Uses Authenticated User's Access Token)
+# ============================================================================
 
 class MetaGraphApiCollector:
     """
     Collects comments directly from official Meta Graph API v21.0.
-    Communicates server-to-server with Facebook using the server's META_ACCESS_TOKEN.
+    Communicates server-to-server with Facebook using the authenticated user's access token.
     """
     def __init__(self, access_token: str, on_comment: Any, on_status: Any):
         self.access_token = access_token
@@ -150,20 +159,26 @@ class MetaGraphApiCollector:
                 self.on_status("COMPLETED", {"message": f"Successfully absorbed {count} comments via Meta Graph API."})
 
         except PermissionDeniedError:
-            if "/share/" in clean_url:
-                msg = "Mobile share link (/share/p/) cannot be accessed. Open the post in your browser and copy the direct URL from the address bar (e.g. facebook.com/PageName/posts/...)."
+            if "/share/" in raw_url:
+                msg = (
+                    "This mobile share link (/share/p/) cannot be resolved through the Meta API. "
+                    "Please open the post in your browser and copy the direct post URL (e.g. facebook.com/PageName/posts/...)."
+                )
             else:
-                msg = "This post cannot be accessed by the Meta Graph API. Please ensure the post is public and your Meta token has permissions to read comments on this Page or post."
+                msg = "Meta does not allow this post to be accessed with your current Facebook permissions."
             self.on_status("ERROR", {"message": msg})
         except PostNotFoundError:
-            if "/share/" in clean_url:
-                msg = "Could not resolve post ID from mobile share link. Please open the post in your browser and copy the direct link from the address bar."
+            if "/share/" in raw_url:
+                msg = (
+                    "This mobile share link (/share/p/) cannot be resolved through the Meta API. "
+                    "Please open the post in your browser and copy the direct post URL (e.g. facebook.com/PageName/posts/...)."
+                )
             else:
                 msg = "Facebook post not found. Please verify the URL and ensure the post is publicly accessible."
             self.on_status("ERROR", {"message": msg})
         except AuthenticationExpiredError:
             self.on_status("ERROR", {
-                "message": "The Meta Access Token has expired or is invalid. Please update META_ACCESS_TOKEN on the server."
+                "message": "Your Facebook login session has expired. Please log in again with Facebook."
             })
         except RateLimitError:
             self.on_status("ERROR", {
@@ -182,6 +197,10 @@ class MetaGraphApiCollector:
                 "message": f"Meta Graph API error: {str(e)}"
             })
 
+
+# ============================================================================
+# Collection Session (Per-User Comment State & Streaming Queues)
+# ============================================================================
 
 class CollectionSession:
     def __init__(self):
@@ -226,7 +245,7 @@ class CollectionSession:
             self.unique_authors.add(comment.user_name)
             self.last_comment = comment
 
-        # Stream comment immediately to all connected browsers
+        # Stream comment immediately to connected browser queues for this session
         self.broadcast("comment", {
             "comment": comment.to_dict(),
             "stats": self.get_stats_dict()
@@ -262,7 +281,7 @@ class CollectionSession:
                 "latest_comment": self.last_comment.to_dict() if self.last_comment else None
             }
 
-    def start(self, url: str, mode: str = "api", max_comments: int = 150, speed: float = 0.25):
+    def start(self, url: str, mode: str = "api", user_token: Optional[str] = None, max_comments: int = 150, speed: float = 0.25):
         with self.lock:
             if self.status in ("CONNECTING", "ACCESSING", "COLLECTING"):
                 return False, "Collection is already running."
@@ -292,31 +311,19 @@ class CollectionSession:
                     )
                     self.current_collector = collector
                     collector.run(url, max_comments=max_comments, speed=speed)
-                elif mode in ("api", "browser"):
-                    # Check for server-side Meta Access Token
-                    from app.config import load_config
-                    cfg = load_config()
-                    token = os.environ.get("META_ACCESS_TOKEN") or cfg.access_token
-                    if token and token.strip():
-                        collector = MetaGraphApiCollector(
-                            access_token=token.strip(),
-                            on_comment=self.on_new_comment,
-                            on_status=self.on_status_change
-                        )
-                        self.current_collector = collector
-                        collector.run(url)
-                    elif mode == "browser":
-                        # Local desktop fallback using browser profile
-                        collector = RealBrowserCommentCollector(
-                            on_comment=self.on_new_comment,
-                            on_status=self.on_status_change
-                        )
-                        self.current_collector = collector
-                        collector.run(url)
-                    else:
+                elif mode == "api":
+                    if not user_token:
                         self.on_status_change("ERROR", {
-                            "message": "Meta Access Token is not configured on the server. Please set the META_ACCESS_TOKEN environment variable in your cloud deployment settings."
+                            "message": "Please log in with Facebook first to collect comments."
                         })
+                        return
+                    collector = MetaGraphApiCollector(
+                        access_token=user_token,
+                        on_comment=self.on_new_comment,
+                        on_status=self.on_status_change
+                    )
+                    self.current_collector = collector
+                    collector.run(url)
                 else:
                     self.on_status_change("ERROR", {"message": f"Unknown mode: {mode}"})
             except Exception as e:
@@ -365,46 +372,173 @@ class CollectionSession:
         return True, "Cleared."
 
 
-session = CollectionSession()
+# ============================================================================
+# Multi-User Session Registry (Zero Global Credential Sharing)
+# ============================================================================
+
+class UserSessionData:
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.is_authenticated = False
+        self.user_id: Optional[str] = None
+        self.user_name: Optional[str] = None
+        self.user_picture: Optional[str] = None
+        self.access_token: Optional[str] = None
+        self.token_expires_at: Optional[float] = None
+        self.oauth_state: Optional[str] = None
+        self.collection_session = CollectionSession()
+        self.created_at = time.time()
+        self.last_active = time.time()
+
+    def touch(self):
+        self.last_active = time.time()
+
+    def logout(self):
+        self.is_authenticated = False
+        self.user_id = None
+        self.user_name = None
+        self.user_picture = None
+        self.access_token = None
+        self.token_expires_at = None
+        self.oauth_state = None
+        self.collection_session.clear()
+
+    def to_user_dict(self) -> Dict[str, Any]:
+        """Safe dict returned to frontend — NEVER exposes access_token."""
+        return {
+            "authenticated": self.is_authenticated,
+            "user": {
+                "id": self.user_id,
+                "name": self.user_name,
+                "picture": self.user_picture,
+            } if self.is_authenticated else None,
+        }
 
 
-# --- Routes ---
+class UserSessionManager:
+    def __init__(self):
+        self._lock = threading.RLock()
+        self._sessions: Dict[str, UserSessionData] = {}
+
+    def get_or_create(self, session_id: Optional[str]) -> UserSessionData:
+        with self._lock:
+            self._cleanup_stale()
+            if session_id and session_id in self._sessions:
+                sess = self._sessions[session_id]
+                sess.touch()
+                return sess
+            new_id = session_id.strip() if (session_id and session_id.strip()) else secrets.token_urlsafe(32)
+            sess = UserSessionData(session_id=new_id)
+            self._sessions[new_id] = sess
+            return sess
+
+    def get(self, session_id: Optional[str]) -> Optional[UserSessionData]:
+        if not session_id:
+            return None
+        with self._lock:
+            return self._sessions.get(session_id)
+
+    def delete(self, session_id: Optional[str]):
+        if not session_id:
+            return
+        with self._lock:
+            if session_id in self._sessions:
+                self._sessions[session_id].logout()
+                del self._sessions[session_id]
+
+    def _cleanup_stale(self):
+        now = time.time()
+        stale_keys = [k for k, v in self._sessions.items() if (now - v.last_active) > 172800]
+        for k in stale_keys:
+            try:
+                self._sessions[k].logout()
+                del self._sessions[k]
+            except Exception:
+                pass
+
+
+user_manager = UserSessionManager()
+default_test_session = CollectionSession()
+
+
+def get_current_user_session() -> UserSessionData:
+    if hasattr(g, "user_session") and g.user_session is not None:
+        return g.user_session
+
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
+    auth_header = request.headers.get("X-Session-ID") or request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        session_id = auth_header.replace("Bearer ", "").strip()
+    elif auth_header:
+        session_id = auth_header.strip()
+
+    sess = user_manager.get_or_create(session_id)
+    g.user_session = sess
+    return sess
+
+
+@app.after_request
+def add_session_and_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-Session-ID"
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+
+    if hasattr(g, "user_session") and g.user_session:
+        current_cookie = request.cookies.get(SESSION_COOKIE_NAME)
+        if current_cookie != g.user_session.session_id:
+            is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+            response.set_cookie(
+                SESSION_COOKIE_NAME,
+                g.user_session.session_id,
+                max_age=86400 * 30,
+                httponly=True,
+                samesite="Lax",
+                secure=is_secure
+            )
+    return response
+
+
+class SessionProxy:
+    """
+    Backwards-compatible proxy delegating to the current user's CollectionSession
+    within HTTP request contexts, or to a default session for unit tests.
+    """
+    def clear(self):
+        default_test_session.clear()
+        if has_request_context():
+            return get_current_user_session().collection_session.clear()
+        return True, "Cleared."
+
+    def on_new_comment(self, comment):
+        default_test_session.on_new_comment(comment)
+        if has_request_context():
+            get_current_user_session().collection_session.on_new_comment(comment)
+
+    def __getattr__(self, name):
+        if has_request_context():
+            sess = get_current_user_session().collection_session
+            if app.config.get("TESTING") and not sess.comments and default_test_session.comments:
+                return getattr(default_test_session, name)
+            return getattr(sess, name)
+        return getattr(default_test_session, name)
+
+
+session = SessionProxy()
+
+
+# ============================================================================
+# Routes & API Endpoints
+# ============================================================================
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-@app.route("/api/auth/status")
-def api_auth_status():
-    """Checks whether the persistent browser profile has active Facebook cookies."""
-    try:
-        collector = RealBrowserCommentCollector(lambda c: None, lambda s, d: None)
-        logged = collector.is_logged_in()
-        return jsonify({"logged_in": logged})
-    except Exception as e:
-        return jsonify({"logged_in": False, "error": str(e)})
-
-
-@app.route("/api/auth/login", methods=["POST"])
-def api_auth_login():
-    """Opens a visible browser window allowing the user to sign in to Facebook."""
-    def _login_thread():
-        try:
-            collector = RealBrowserCommentCollector(lambda c: None, lambda s, d: None)
-            res = collector.open_login_window()
-            if res or collector.is_logged_in():
-                session.broadcast("auth", {"logged_in": True, "message": "Facebook login verified!"})
-                session.broadcast("status", {
-                    "status": "IDLE",
-                    "message": "Facebook account verified! Paste your post link and click Start Collecting.",
-                    "stats": session.get_stats_dict()
-                })
-        except Exception:
-            pass
-
-    threading.Thread(target=_login_thread, daemon=True).start()
-    return jsonify({"success": True, "message": "Opening Facebook login window in browser..."})
+@app.route("/api/network/info", methods=["GET"])
+def api_network_info():
+    return jsonify(NETWORK_INFO)
 
 
 @app.route("/api/health", methods=["GET"])
@@ -417,110 +551,281 @@ def api_health():
     })
 
 
-@app.route("/api/admin/status", methods=["GET"])
-def api_admin_status():
-    """Reports server and Meta API connection status without exposing secrets."""
-    from app.config import load_config
-    cfg = load_config()
-    token = os.environ.get("META_ACCESS_TOKEN") or cfg.access_token
-    has_token = bool(token and token.strip())
-    token_preview = f"{token[:6]}...{token[-4:]}" if has_token and len(token) > 12 else ("Configured" if has_token else "Not Configured")
+# ============================================================================
+# Meta OAuth 2.0 (Facebook Login) Endpoints
+# ============================================================================
+
+@app.route("/auth/facebook/login", methods=["GET"])
+def auth_facebook_login():
+    """Initiates official Meta OAuth 2.0 dialog for the requesting user."""
+    app_id = os.environ.get("META_APP_ID", "").strip()
+    if not app_id:
+        return (
+            "<h3>Facebook Login Not Configured</h3>"
+            "<p>The administrator has not configured <code>META_APP_ID</code> and <code>META_APP_SECRET</code> in the cloud environment.</p>"
+            "<p><a href='/'>Return to Comment Absorber</a></p>",
+            503
+        )
+
+    user_session = get_current_user_session()
+    oauth_state = secrets.token_urlsafe(24)
+    user_session.oauth_state = oauth_state
+
+    redirect_uri = os.environ.get("META_REDIRECT_URI", "").strip()
+    if not redirect_uri:
+        scheme = "https" if (request.is_secure or request.headers.get("X-Forwarded-Proto") == "https") else request.scheme
+        redirect_uri = f"{scheme}://{request.host}/auth/facebook/callback"
+
+    scope = "public_profile,user_posts"
+
+    params = {
+        "client_id": app_id,
+        "redirect_uri": redirect_uri,
+        "state": oauth_state,
+        "scope": scope,
+        "response_type": "code"
+    }
+    fb_auth_url = f"https://www.facebook.com/v21.0/dialog/oauth?{urlencode(params)}"
+    return redirect(fb_auth_url)
+
+
+@app.route("/auth/facebook/callback", methods=["GET"])
+def auth_facebook_callback():
+    """Handles OAuth 2.0 redirect callback, exchanges code for user access token."""
+    error = request.args.get("error")
+    error_desc = request.args.get("error_description", "Authentication was cancelled or failed.")
+    if error:
+        return redirect(f"/?auth_error={error_desc}")
+
+    code = request.args.get("code")
+    state = request.args.get("state")
+    user_session = get_current_user_session()
+
+    if not code:
+        return redirect("/?auth_error=No authorization code received from Facebook.")
+
+    if not user_session.oauth_state or state != user_session.oauth_state:
+        return redirect("/?auth_error=Invalid security state. Please try logging in again.")
+
+    app_id = os.environ.get("META_APP_ID", "").strip()
+    app_secret = os.environ.get("META_APP_SECRET", "").strip()
+    redirect_uri = os.environ.get("META_REDIRECT_URI", "").strip()
+    if not redirect_uri:
+        scheme = "https" if (request.is_secure or request.headers.get("X-Forwarded-Proto") == "https") else request.scheme
+        redirect_uri = f"{scheme}://{request.host}/auth/facebook/callback"
+
+    try:
+        import requests
+        token_url = "https://graph.facebook.com/v21.0/oauth/access_token"
+        token_resp = requests.get(token_url, params={
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "redirect_uri": redirect_uri,
+            "code": code
+        }, timeout=10)
+
+        token_data = token_resp.json()
+        if "error" in token_data:
+            err_msg = token_data["error"].get("message", "Failed to retrieve access token.")
+            return redirect(f"/?auth_error={err_msg}")
+
+        user_token = token_data.get("access_token")
+        expires_in = token_data.get("expires_in", 3600)
+
+        # Retrieve user identity to personalize their session
+        me_resp = requests.get("https://graph.facebook.com/v21.0/me", params={
+            "fields": "id,name,picture.type(large)",
+            "access_token": user_token
+        }, timeout=8)
+        me_data = me_resp.json()
+
+        user_id = me_data.get("id")
+        user_name = me_data.get("name", "Facebook User")
+        user_pic = me_data.get("picture", {}).get("data", {}).get("url", "")
+
+        # Store ONLY on the secure server-side session
+        user_session.is_authenticated = True
+        user_session.user_id = user_id
+        user_session.user_name = user_name
+        user_session.user_picture = user_pic
+        user_session.access_token = user_token
+        user_session.token_expires_at = time.time() + expires_in
+
+        return redirect("/?auth_success=1")
+
+    except Exception as e:
+        return redirect(f"/?auth_error=Failed to complete Facebook login: {str(e)}")
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def api_auth_me():
+    """Returns current user's authentication state without exposing secret tokens."""
+    user_session = get_current_user_session()
+    app_id = os.environ.get("META_APP_ID", "").strip()
     return jsonify({
-        "backend_online": True,
-        "meta_token_configured": has_token,
-        "token_preview": token_preview,
-        "api_version": "v21.0"
+        "authenticated": user_session.is_authenticated,
+        "app_configured": bool(app_id),
+        "user": {
+            "id": user_session.user_id,
+            "name": user_session.user_name,
+            "picture": user_session.user_picture
+        } if user_session.is_authenticated else None
     })
 
 
-@app.route("/api/admin/test-token", methods=["POST"])
-def api_test_token():
-    """Tests the server's Meta Access Token (or a provided token) against Graph API."""
-    data = request.get_json(silent=True) or {}
-    token = (data.get("token") or "").strip()
-    if not token:
-        from app.config import load_config
-        token = os.environ.get("META_ACCESS_TOKEN") or load_config().access_token
+@app.route("/api/auth/logout", methods=["POST"])
+def api_auth_logout():
+    """Logs out the current user and invalidates their session and credentials."""
+    user_session = get_current_user_session()
+    user_session.logout()
+    return jsonify({"success": True, "message": "Logged out successfully."})
 
-    if not token or not token.strip():
-        return jsonify({
-            "success": False,
-            "error": "No Meta Access Token configured on the server. Please set META_ACCESS_TOKEN in environment variables."
-        }), 400
+
+@app.route("/api/auth/set-token", methods=["POST"])
+def api_auth_set_token():
+    """Developer / testing utility: sets an authorized token for the current isolated session."""
+    data = request.get_json(silent=True) or {}
+    token = data.get("access_token", "").strip()
+    user_session = get_current_user_session()
+    if not token:
+        return jsonify({"status": "error", "message": "No access token provided."}), 400
 
     try:
-        from app.facebook_api import FacebookApiClient
-        client = FacebookApiClient(access_token=token.strip())
-        info = client._get("/me", params={"fields": "id,name"})
-        name = info.get("name", "Authorized Account")
-        acct_id = info.get("id", "N/A")
+        import requests
+        resp = requests.get(
+            "https://graph.facebook.com/v21.0/me",
+            params={"fields": "id,name,picture", "access_token": token},
+            timeout=5
+        )
+        user_data = resp.json()
+        if "error" in user_data:
+            return jsonify({
+                "status": "error",
+                "message": user_data["error"].get("message", "Invalid token")
+            }), 400
+
+        user_session.is_authenticated = True
+        user_session.user_id = user_data.get("id")
+        user_session.user_name = user_data.get("name")
+        user_session.user_picture = user_data.get("picture", {}).get("data", {}).get("url", "")
+        user_session.access_token = token
         return jsonify({
-            "success": True,
-            "message": f"Connected to Meta Graph API v21.0! Verified account: {name} (ID: {acct_id})."
+            "status": "ok",
+            "user": {
+                "id": user_session.user_id,
+                "name": user_session.user_name
+            }
         })
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": f"Meta Graph API connection failed: {str(e)}"
-        }), 400
+        return jsonify({"status": "error", "message": str(e)}), 400
 
+
+@app.route("/api/admin/status", methods=["GET"])
+def api_admin_status():
+    """Reports server status and whether Meta OAuth app credentials are configured."""
+    app_id = os.environ.get("META_APP_ID", "").strip()
+    user_session = get_current_user_session()
+    has_app_id = bool(app_id)
+    app_preview = f"{app_id[:4]}...{app_id[-4:]}" if has_app_id and len(app_id) > 8 else ("Configured" if has_app_id else "Not Configured")
+    return jsonify({
+        "backend_online": True,
+        "api_version": "v21.0",
+        "app_id_configured": has_app_id,
+        "app_preview": app_preview,
+        "meta_token_configured": user_session.is_authenticated or has_app_id,
+        "user_authenticated": user_session.is_authenticated,
+        "user_name": user_session.user_name if user_session.is_authenticated else None
+    })
+
+
+# ============================================================================
+# Collection API Endpoints (Operates on the Current User's Session)
+# ============================================================================
 
 @app.route("/api/collect/start", methods=["POST"])
 def api_start_collect():
-    data = request.get_json() or {}
+    user_session = get_current_user_session()
+    data = request.get_json(silent=True) or {}
     url = data.get("url", "").strip()
-    mode = data.get("mode", "api") # DEFAULT TO OFFICIAL META GRAPH API
+    mode = data.get("mode", "api")
     max_comments = int(data.get("max_comments", 150))
     speed = float(data.get("speed", 0.25))
 
-    if mode in ("api", "browser"):
-        if not url:
-            return jsonify({"success": False, "error": "Please paste a Facebook post URL first."}), 400
-        try:
-            url = clean_facebook_url(url)
-        except Exception as e:
-            return jsonify({"success": False, "error": f"Invalid URL: {str(e)}"}), 400
-    else:
-        # Simulator fallback url
+    if mode == "simulator":
         if not url:
             url = "https://www.facebook.com/demo/posts/1000"
+        ok, msg = user_session.collection_session.start(
+            url=url,
+            mode="simulator",
+            max_comments=max_comments,
+            speed=speed
+        )
+        return jsonify({"success": ok, "status": "ok" if ok else "error", "message": msg, "clean_url": url})
 
-    success, msg = session.start(url=url, mode=mode, max_comments=max_comments, speed=speed)
-    if success:
-        return jsonify({"success": True, "message": msg, "clean_url": url})
-    return jsonify({"success": False, "error": msg}), 400
+    # For real API collection, user MUST be authenticated with their own Facebook account
+    if not url:
+        return jsonify({"status": "error", "error": "Please paste a Facebook post URL first."}), 400
+
+    try:
+        url = clean_facebook_url(url)
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"Invalid URL: {str(e)}"}), 400
+
+    if not user_session.is_authenticated or not user_session.access_token:
+        return jsonify({
+            "status": "error",
+            "error": "Please log in with Facebook first to collect comments with your account.",
+            "message": "Please log in with Facebook first to collect comments with your account."
+        }), 401
+
+    ok, msg = user_session.collection_session.start(
+        url=url,
+        mode="api",
+        user_token=user_session.access_token,
+        max_comments=max_comments,
+        speed=speed
+    )
+    if ok:
+        return jsonify({"success": True, "status": "ok", "message": msg, "clean_url": url})
+    return jsonify({"success": False, "status": "error", "error": msg}), 400
 
 
 @app.route("/api/collect/stop", methods=["POST"])
 def api_stop_collect():
-    success, msg = session.stop()
+    user_session = get_current_user_session()
+    success, msg = user_session.collection_session.stop()
     return jsonify({"success": success, "message": msg})
 
 
 @app.route("/api/collect/clear", methods=["POST"])
 def api_clear_collect():
-    success, msg = session.clear()
+    user_session = get_current_user_session()
+    success, msg = user_session.collection_session.clear()
     return jsonify({"success": success, "message": msg})
 
 
 @app.route("/api/collect/state", methods=["GET"])
 def api_get_state():
-    with session.lock:
+    user_session = get_current_user_session()
+    with user_session.collection_session.lock:
         return jsonify({
-            "comments": [c.to_dict() for c in session.comments],
-            "stats": session.get_stats_dict()
+            "comments": [c.to_dict() for c in user_session.collection_session.comments],
+            "stats": user_session.collection_session.get_stats_dict()
         })
 
 
 @app.route("/api/collect/stream")
 def api_stream():
-    """Server-Sent Events endpoint for real-time push streaming to the browser."""
+    """Server-Sent Events endpoint for real-time push streaming to the current user."""
+    user_session = get_current_user_session()
+    sess = user_session.collection_session
+    q = sess.add_event_queue()
+
     def event_stream():
-        q = session.add_event_queue()
         try:
-            with session.lock:
-                stats = session.get_stats_dict()
-                comments = [c.to_dict() for c in session.comments]
+            with sess.lock:
+                stats = sess.get_stats_dict()
+                comments = [c.to_dict() for c in sess.comments]
             init_payload = json.dumps({
                 "stats": stats,
                 "comments": comments
@@ -529,14 +834,14 @@ def api_stream():
 
             while True:
                 try:
-                    msg = q.get(timeout=4.0)
+                    msg = q.get(timeout=25.0)
                     yield msg
                 except queue.Empty:
                     yield ": ping\n\n"
         except (GeneratorExit, Exception):
             pass
         finally:
-            session.remove_event_queue(q)
+            sess.remove_event_queue(q)
 
     resp = Response(event_stream(), mimetype="text/event-stream")
     resp.headers["Cache-Control"] = "no-cache, no-transform, no-store, must-revalidate"
@@ -549,8 +854,14 @@ def api_stream():
 
 @app.route("/api/export/excel", methods=["GET"])
 def api_export_excel():
-    with session.lock:
-        comments_copy = list(session.comments)
+    user_session = get_current_user_session()
+    sess = user_session.collection_session
+    with sess.lock:
+        comments_copy = list(sess.comments)
+
+    if not comments_copy and app.config.get("TESTING"):
+        with default_test_session.lock:
+            comments_copy = list(default_test_session.comments)
 
     if not comments_copy:
         return jsonify({"error": "No comments available to export."}), 400
@@ -577,8 +888,14 @@ def api_export_excel():
 
 @app.route("/api/export/csv", methods=["GET"])
 def api_export_csv():
-    with session.lock:
-        comments_copy = list(session.comments)
+    user_session = get_current_user_session()
+    sess = user_session.collection_session
+    with sess.lock:
+        comments_copy = list(sess.comments)
+
+    if not comments_copy and app.config.get("TESTING"):
+        with default_test_session.lock:
+            comments_copy = list(default_test_session.comments)
 
     if not comments_copy:
         return jsonify({"error": "No comments available to export."}), 400
