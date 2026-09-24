@@ -150,13 +150,17 @@ class MetaGraphApiCollector:
                 self.on_status("COMPLETED", {"message": f"Successfully absorbed {count} comments via Meta Graph API."})
 
         except PermissionDeniedError:
-            self.on_status("ERROR", {
-                "message": "This post cannot be accessed by the Meta Graph API. Please ensure the post is public and your Meta token has permissions to read comments on this Page or post."
-            })
+            if "/share/" in clean_url:
+                msg = "Mobile share link (/share/p/) cannot be accessed. Open the post in your browser and copy the direct URL from the address bar (e.g. facebook.com/PageName/posts/...)."
+            else:
+                msg = "This post cannot be accessed by the Meta Graph API. Please ensure the post is public and your Meta token has permissions to read comments on this Page or post."
+            self.on_status("ERROR", {"message": msg})
         except PostNotFoundError:
-            self.on_status("ERROR", {
-                "message": "Facebook post not found. Please verify the URL and ensure the post is publicly accessible."
-            })
+            if "/share/" in clean_url:
+                msg = "Could not resolve post ID from mobile share link. Please open the post in your browser and copy the direct link from the address bar."
+            else:
+                msg = "Facebook post not found. Please verify the URL and ensure the post is publicly accessible."
+            self.on_status("ERROR", {"message": msg})
         except AuthenticationExpiredError:
             self.on_status("ERROR", {
                 "message": "The Meta Access Token has expired or is invalid. Please update META_ACCESS_TOKEN on the server."
