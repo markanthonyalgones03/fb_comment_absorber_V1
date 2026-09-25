@@ -142,40 +142,39 @@ Comment Absorber/
 
 ---
 
-## Multi-User Cloud Architecture (Facebook Login / OAuth 2.0)
+## Universal Dual-Engine Architecture
 
-Comment Absorber is a **public multi-user web application**:
-- Each visitor logs in with **their own Facebook account** via official Meta OAuth 2.0.
-- Each user's authorized access token is stored securely in a private server session (never in client JS, never in localStorage, never shared).
-- When a user collects comments, the backend queries Meta Graph API using **that specific user's authorized credentials**.
-- Sessions are completely isolated: User A never sees User B's comments or tokens.
+Comment Absorber is a **cloud-hosted public comment absorption web application**:
+
+1. **Public Post Engine (No Login Required):**
+   - Extracts public comments from any Facebook Post, Reel, Video, or Page.
+   - Powered by the server-side Apify Actor API (`apify/facebook-comments-scraper`).
+   - Visitors can simply paste any public post or reel link and click **Absorb Comments**.
+
+2. **Official Meta Graph API (Optional Facebook Login):**
+   - For users who want to query their own personal posts or managed Facebook Pages via official Meta OAuth 2.0.
+   - Per-user session isolation: tokens stored exclusively in private server-side session memory.
 
 ### Environment Variables for Render.com:
-| Variable | Description |
-| :--- | :--- |
-| `META_APP_ID` | Your Meta App ID from [developers.facebook.com](https://developers.facebook.com) |
-| `META_APP_SECRET` | Your Meta App Secret (App Settings ➔ Basic) |
-| `META_REDIRECT_URI` | *(Optional)* e.g. `https://fb-comment-absorber-v1.onrender.com/auth/facebook/callback` |
-| `SESSION_SECRET` | Random secret key for signing session cookies |
-| `PORT` | `10000` |
-
-### Meta App Settings (One-Time Setup):
-In [developers.facebook.com](https://developers.facebook.com) ➔ Your App (`Comment Absorber`):
-1. Go to **Use cases** or **Facebook Login** ➔ **Settings**.
-2. Under **Valid OAuth Redirect URIs**, add:
-   - `https://fb-comment-absorber-v1.onrender.com/auth/facebook/callback`
-3. Save changes.
+| Variable | Required? | Description |
+| :--- | :---: | :--- |
+| `APIFY_API_TOKEN` | **Recommended** | Free API token from [apify.com](https://apify.com) ($5 free monthly credit). Enables public post/reel absorption without Facebook login. |
+| `META_APP_ID` | Optional | Your Meta App ID from [developers.facebook.com](https://developers.facebook.com) (for Facebook Login). |
+| `META_APP_SECRET` | Optional | Your Meta App Secret (App Settings ➔ Basic). |
+| `META_REDIRECT_URI` | Optional | e.g. `https://fb-comment-absorber-v1.onrender.com/auth/facebook/callback` |
+| `SESSION_SECRET` | Auto-Generated | Random secret key for signing session cookies |
+| `PORT` | Pre-configured | `10000` |
 
 ---
 
 ## Running Automated Tests
 
-Run the full automated test suite (53 tests):
+Run the full automated test suite (54 tests):
 ```bash
 python -m pytest
 ```
 
-All 53 test cases across URL parsing, multi-user session isolation, OAuth state handling, Excel formatting, API error handling, and web collectors pass with 100% compliance.
+All 54 test cases across URL parsing, multi-user session isolation, public post engine routing, OAuth state handling, Excel formatting, and API error handling pass with 100% compliance.
 
 ---
 

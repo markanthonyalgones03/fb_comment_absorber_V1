@@ -1573,14 +1573,14 @@ html, body {
   <!-- Full-Width Responsive Dashboard Container -->
   <main class="dashboard-container">
 
-    <!-- Meta API Permission & Privacy Notice Banner -->
+    <!-- Public & Meta API Notice Banner -->
     <div class="meta-notice-card">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="16" x2="12" y2="12"></line>
         <line x1="12" y1="8" x2="12.01" y2="8"></line>
       </svg>
-      <span>You can collect comments from Facebook posts that your Facebook account and this application are authorized to access through Meta's API.</span>
+      <span>Absorb public comments from any Facebook post, Reel, Video, or Page. (Login with Facebook is optional for accessing your own personal or managed Page posts via official Meta API).</span>
     </div>
 
     <!-- Login Required Banner (Shown if user is unauthenticated) -->
@@ -2555,11 +2555,15 @@ html, body {
         el.diagUserStatus.innerHTML = `🟢 Logged in as <strong>${escapeXml(state.user.name)}</strong> (ID: ${escapeXml(state.user.id)})`;
       }
     } else {
-      if (el.btnLoginFb) el.btnLoginFb.style.display = 'inline-flex';
+      if (el.btnLoginFb) {
+        el.btnLoginFb.style.display = 'inline-flex';
+        const span = el.btnLoginFb.querySelector('span');
+        if (span) span.textContent = 'Login with Facebook (Optional)';
+      }
       if (el.userProfileBadge) el.userProfileBadge.style.display = 'none';
-      if (el.loginRequiredBanner) el.loginRequiredBanner.style.display = 'flex';
+      if (el.loginRequiredBanner) el.loginRequiredBanner.style.display = 'none';
       if (el.diagUserStatus) {
-        el.diagUserStatus.innerHTML = `⚪ Not logged in. Click <strong>Login with Facebook</strong> to authorize your account.`;
+        el.diagUserStatus.innerHTML = `⚪ Public Mode active. Facebook login is optional (only needed for personal/managed page posts).`;
       }
     }
   }
@@ -2590,15 +2594,6 @@ html, body {
   // --- Real Collector Action Handlers ---
   async function handleStart() {
     const url = (el.postUrl.value || '').trim();
-
-    if (!state.isAuthenticated) {
-      showToast('Please log in with Facebook first to collect comments.', 'error');
-      if (el.loginRequiredBanner) {
-        el.loginRequiredBanner.style.display = 'flex';
-        el.loginRequiredBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-      return;
-    }
 
     if (!url) {
       showToast('Please paste a Facebook post URL first!', 'error');
@@ -2631,18 +2626,23 @@ html, body {
     startActivePolling();
 
     try {
+      const chosenMode = state.isAuthenticated ? 'api' : 'public';
       const startRes = await fetch(`${apiTarget}/api/collect/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, mode: 'api' })
+        body: JSON.stringify({ url: url, mode: chosenMode })
       });
       const data = await startRes.json();
       if (data.success) {
         updateStatusUI('ACCESSING', `Connecting to Facebook for post: ${data.clean_url || url}...`);
-        showToast('Absorbing real comments via Meta Graph API...', 'info');
+        const engineLabel = data.engine === 'public' ? 'Public Post Engine' : 'Meta Graph API';
+        showToast(`Absorbing real comments via ${engineLabel}...`, 'info');
       } else {
-        updateStatusUI('ERROR', data.error || 'Failed to start collection.');
-        showToast(data.error || 'Failed to start collection.', 'error');
+        updateStatusUI('ERROR', data.error || data.message || 'Failed to start collection.');
+        showToast(data.error || data.message || 'Failed to start collection.', 'error');
+        if (data.message && data.message.includes('Login with Facebook') && el.loginRequiredBanner) {
+          el.loginRequiredBanner.style.display = 'flex';
+        }
       }
     } catch (err) {
       updateStatusUI('ERROR', 'Comment service is temporarily unavailable. Could not reach backend server.');

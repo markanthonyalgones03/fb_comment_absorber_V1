@@ -260,6 +260,28 @@ class TestCommentAbsorberWeb(unittest.TestCase):
         )
         print("\n[+] Verified Meta Permission Denied message: 'Meta does not allow this post to be accessed with your current Facebook permissions.'")
 
+    def test_12_public_post_engine_apify_routing(self):
+        """Verify unauthenticated user can absorb public comments when APIFY_API_TOKEN is set."""
+        import os
+        from unittest.mock import patch
+        
+        self.client.set_cookie("ca_session_id", "session_public_visitor")
+        with patch.dict(os.environ, {"APIFY_API_TOKEN": "mock_apify_token_123"}):
+            with patch("app_web.PublicPostCommentCollector.run") as mock_run:
+                resp = self.client.post("/api/collect/start", json={
+                    "url": "https://www.facebook.com/NASA/posts/1015948291029384",
+                    "mode": "public"
+                })
+                self.assertEqual(resp.status_code, 200)
+                data = resp.get_json()
+                self.assertTrue(data["success"])
+                self.assertEqual(data["engine"], "public")
+                # Wait briefly for worker thread to launch
+                import time
+                time.sleep(0.1)
+                self.assertTrue(mock_run.called)
+        print("\n[+] Verified Public Post Engine: Unauthenticated users can absorb comments via Apify without Facebook login.")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,4 +20,6 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: APIFY_API_TOKEN
+        sync: false
 

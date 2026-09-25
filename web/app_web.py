@@ -193,6 +193,142 @@ class MetaGraphApiCollector:
             })
 
 
+class PublicPostCommentCollector:
+    """
+    Public Facebook Comment Collector powered by Apify Actor API.
+    Capable of extracting comments from any publicly accessible post,
+    page post, reel, or video without requiring the user to log into Facebook.
+    """
+    def __init__(
+        self,
+        api_token: str,
+        on_comment: Any,
+        on_status: Any
+    ):
+        self.api_token = api_token
+        self.on_comment = on_comment
+        self.on_status = on_status
+        self.is_cancelled = False
+        self.current_run_id = None
+
+    def cancel(self):
+        self.is_cancelled = True
+        if self.current_run_id and self.api_token:
+            try:
+                import requests
+                abort_url = f"https://api.apify.com/v2/actor-runs/{self.current_run_id}/abort?token={self.api_token}"
+                requests.post(abort_url, timeout=3)
+            except Exception:
+                pass
+
+    def run(self, raw_url: str, max_comments: int = 150):
+        try:
+            import requests
+            from app.utils import clean_facebook_url
+            
+            clean_url = clean_facebook_url(raw_url)
+            self.on_status("ACCESSING", {"message": f"Connecting to public Facebook post engine for {clean_url}..."})
+
+            # Start Apify Actor run
+            run_url = f"https://api.apify.com/v2/acts/apify~facebook-comments-scraper/runs?token={self.api_token}"
+            payload = {
+                "startUrls": [{"url": clean_url}],
+                "resultsLimit": min(max_comments, 500),
+                "includeNestedComments": True,
+                "viewOption": "RANKED_UNFILTERED"
+            }
+            resp = requests.post(run_url, json=payload, timeout=15)
+            if resp.status_code >= 400:
+                if resp.status_code == 401:
+                    self.on_status("ERROR", {"message": "Invalid APIFY_API_TOKEN. Please verify your token in cloud environment settings."})
+                else:
+                    self.on_status("ERROR", {"message": f"Public post engine error: HTTP {resp.status_code}"})
+                return
+
+            run_data = resp.json().get("data", {})
+            self.current_run_id = run_data.get("id")
+            dataset_id = run_data.get("defaultDatasetId")
+
+            if not dataset_id:
+                self.on_status("ERROR", {"message": "Could not initialize public comment extraction dataset."})
+                return
+
+            self.on_status("COLLECTING", {"message": "Extracting public comments and replies..."})
+
+            seen_ids = set()
+            count = 0
+            offset = 0
+
+            palette = [
+                "#1877F2", "#10B981", "#6366F1", "#EC4899", 
+                "#F59E0B", "#8B5CF6", "#06B6D4", "#14B8A6"
+            ]
+
+            while not self.is_cancelled:
+                items_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={self.api_token}&offset={offset}&limit=50"
+                i_resp = requests.get(items_url, timeout=10)
+                if i_resp.status_code == 200:
+                    items = i_resp.json()
+                    for item in items:
+                        if self.is_cancelled:
+                            break
+                        c_id = str(item.get("id") or item.get("commentUrl") or f"c_{count + 1}")
+                        if c_id in seen_ids:
+                            continue
+                        seen_ids.add(c_id)
+                        count += 1
+
+                        user_name = item.get("profileName") or (item.get("author") or {}).get("name") or "Facebook User"
+                        message = item.get("text") or item.get("message") or ""
+                        date_str = item.get("date") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                        parts = [p for p in user_name.split() if p]
+                        if len(parts) >= 2:
+                            initials = (parts[0][0] + parts[1][0]).upper()
+                        elif len(parts) == 1:
+                            initials = parts[0][:2].upper()
+                        else:
+                            initials = "FB"
+                        color = palette[sum(ord(ch) for ch in user_name) % len(palette)]
+
+                        web_comment = WebComment(
+                            index=count,
+                            comment_id=c_id,
+                            user_name=user_name,
+                            message=message,
+                            created_time=date_str,
+                            timestamp_raw=time.time(),
+                            avatar_color=color,
+                            avatar_initials=initials
+                        )
+                        self.on_comment(web_comment)
+
+                    offset += len(items)
+
+                # Check if actor run has finished
+                run_status_url = f"https://api.apify.com/v2/actor-runs/{self.current_run_id}?token={self.api_token}"
+                rs_resp = requests.get(run_status_url, timeout=10)
+                if rs_resp.status_code == 200:
+                    r_status = rs_resp.json().get("data", {}).get("status")
+                    if r_status in ("SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"):
+                        break
+
+                if count >= max_comments:
+                    break
+
+                time.sleep(2.5)
+
+            if self.is_cancelled:
+                self.on_status("CANCELLED", {"message": f"Collection stopped by user. {count} comments absorbed."})
+            elif count == 0:
+                self.on_status("COMPLETED", {"message": "No comments found on this public post (or comments are restricted)."})
+            else:
+                self.on_status("COMPLETED", {"message": f"Successfully absorbed {count} public comments."})
+
+        except Exception as e:
+            self.on_status("ERROR", {"message": f"Public comment absorption failed: {str(e)}"})
+
+
 # ============================================================================
 # Collection Session (Per-User Comment State & Streaming Queues)
 # ============================================================================
@@ -299,6 +435,7 @@ class CollectionSession:
 
         def _worker():
             try:
+                apify_token = os.environ.get("APIFY_API_TOKEN", "").strip()
                 if mode == "simulator":
                     collector = SimulatorCollector(
                         on_comment=self.on_new_comment,
@@ -306,10 +443,23 @@ class CollectionSession:
                     )
                     self.current_collector = collector
                     collector.run(url, max_comments=max_comments, speed=speed)
+                elif mode == "public" or (apify_token and not user_token):
+                    if not apify_token:
+                        self.on_status_change("ERROR", {
+                            "message": "APIFY_API_TOKEN is not configured on Render. Please configure it in cloud environment settings."
+                        })
+                        return
+                    collector = PublicPostCommentCollector(
+                        api_token=apify_token,
+                        on_comment=self.on_new_comment,
+                        on_status=self.on_status_change
+                    )
+                    self.current_collector = collector
+                    collector.run(url, max_comments=max_comments)
                 elif mode == "api":
                     if not user_token:
                         self.on_status_change("ERROR", {
-                            "message": "Please log in with Facebook first to collect comments."
+                            "message": "Please log in with Facebook first to collect comments from your account."
                         })
                         return
                     collector = MetaGraphApiCollector(
@@ -657,9 +807,11 @@ def api_auth_me():
     """Returns current user's authentication state without exposing secret tokens."""
     user_session = get_current_user_session()
     app_id = os.environ.get("META_APP_ID", "").strip()
+    apify_token = os.environ.get("APIFY_API_TOKEN", "").strip()
     return jsonify({
         "authenticated": user_session.is_authenticated,
         "app_configured": bool(app_id),
+        "public_engine_configured": bool(apify_token),
         "user": {
             "id": user_session.user_id,
             "name": user_session.user_name,
@@ -719,6 +871,7 @@ def api_auth_set_token():
 def api_admin_status():
     """Reports server status and whether Meta OAuth app credentials are configured."""
     app_id = os.environ.get("META_APP_ID", "").strip()
+    apify_token = os.environ.get("APIFY_API_TOKEN", "").strip()
     user_session = get_current_user_session()
     has_app_id = bool(app_id)
     app_preview = f"{app_id[:4]}...{app_id[-4:]}" if has_app_id and len(app_id) > 8 else ("Configured" if has_app_id else "Not Configured")
@@ -727,6 +880,7 @@ def api_admin_status():
         "api_version": "v21.0",
         "app_id_configured": has_app_id,
         "app_preview": app_preview,
+        "apify_configured": bool(apify_token),
         "meta_token_configured": user_session.is_authenticated or has_app_id,
         "user_authenticated": user_session.is_authenticated,
         "user_name": user_session.user_name if user_session.is_authenticated else None
@@ -757,7 +911,6 @@ def api_start_collect():
         )
         return jsonify({"success": ok, "status": "ok" if ok else "error", "message": msg, "clean_url": url})
 
-    # For real API collection, user MUST be authenticated with their own Facebook account
     if not url:
         return jsonify({"status": "error", "error": "Please paste a Facebook post URL first."}), 400
 
@@ -766,22 +919,35 @@ def api_start_collect():
     except Exception as e:
         return jsonify({"status": "error", "error": f"Invalid URL: {str(e)}"}), 400
 
-    if not user_session.is_authenticated or not user_session.access_token:
+    apify_token = os.environ.get("APIFY_API_TOKEN", "").strip()
+    is_authenticated = user_session.is_authenticated and bool(user_session.access_token)
+
+    # Route between Public Post Engine and Meta Graph API
+    if apify_token and (mode == "public" or not is_authenticated):
+        chosen_mode = "public"
+        token = None
+    elif is_authenticated:
+        chosen_mode = "api"
+        token = user_session.access_token
+    elif apify_token:
+        chosen_mode = "public"
+        token = None
+    else:
         return jsonify({
             "status": "error",
-            "error": "Please log in with Facebook first to collect comments with your account.",
-            "message": "Please log in with Facebook first to collect comments with your account."
+            "error": "Please log in with Facebook first to collect comments from your account, or configure APIFY_API_TOKEN on Render to absorb comments from public posts.",
+            "message": "Please log in with Facebook first to collect comments from your account, or configure APIFY_API_TOKEN on Render to absorb comments from public posts."
         }), 401
 
     ok, msg = user_session.collection_session.start(
         url=url,
-        mode="api",
-        user_token=user_session.access_token,
+        mode=chosen_mode,
+        user_token=token,
         max_comments=max_comments,
         speed=speed
     )
     if ok:
-        return jsonify({"success": True, "status": "ok", "message": msg, "clean_url": url})
+        return jsonify({"success": True, "status": "ok", "message": msg, "clean_url": url, "engine": chosen_mode})
     return jsonify({"success": False, "status": "error", "error": msg}), 400
 
 
