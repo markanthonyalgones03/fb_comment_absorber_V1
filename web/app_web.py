@@ -159,19 +159,14 @@ class MetaGraphApiCollector:
                 self.on_status("COMPLETED", {"message": f"Successfully absorbed {count} comments via Meta Graph API."})
 
         except PermissionDeniedError:
-            if "/share/" in raw_url:
-                msg = (
-                    "This mobile share link (/share/p/) cannot be resolved through the Meta API. "
-                    "Please open the post in your browser and copy the direct post URL (e.g. facebook.com/PageName/posts/...)."
-                )
-            else:
-                msg = "Meta does not allow this post to be accessed with your current Facebook permissions."
-            self.on_status("ERROR", {"message": msg})
+            self.on_status("ERROR", {
+                "message": "Meta does not allow this post to be accessed with your current Facebook permissions."
+            })
         except PostNotFoundError:
             if "/share/" in raw_url:
                 msg = (
-                    "This mobile share link (/share/p/) cannot be resolved through the Meta API. "
-                    "Please open the post in your browser and copy the direct post URL (e.g. facebook.com/PageName/posts/...)."
+                    "This mobile share link could not be resolved through the Meta API. "
+                    "Please open the post in your browser and copy the direct post URL (e.g. facebook.com/PageName/posts/... or facebook.com/reel/...)."
                 )
             else:
                 msg = "Facebook post not found. Please verify the URL and ensure the post is publicly accessible."

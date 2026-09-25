@@ -139,11 +139,35 @@ def extract_post_identifiers(clean_url: str) -> Tuple[Optional[str], Optional[st
         share_token = share_match.group(1)
         try:
             import requests
-            resp = requests.head(clean_url, allow_redirects=True, timeout=4, headers={"User-Agent": "Mozilla/5.0"})
-            if resp.url and resp.url != clean_url and "facebook.com" in resp.url:
-                c_page, c_post = extract_post_identifiers(resp.url)
-                if c_post:
-                    return c_page, c_post
+            session = requests.Session()
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            })
+            # 1. Quick check without redirect to read Location header directly
+            r = session.head(clean_url, allow_redirects=False, timeout=5)
+            loc = r.headers.get("Location")
+            if not loc:
+                r = session.get(clean_url, allow_redirects=False, timeout=5)
+                loc = r.headers.get("Location")
+            if loc:
+                if loc.startswith("/"):
+                    loc = f"https://www.facebook.com{loc}"
+                if "facebook.com" in loc and "/share/" not in loc and "login.php" not in loc:
+                    c_page, c_post = extract_post_identifiers(loc)
+                    if c_post:
+                        return c_page, c_post
+
+            # 2. Check full redirect history
+            resp = session.head(clean_url, allow_redirects=True, timeout=5)
+            candidates = [resp.url] + [h.headers.get("Location") for h in resp.history if h.headers.get("Location")]
+            for cand in candidates:
+                if cand:
+                    if cand.startswith("/"):
+                        cand = f"https://www.facebook.com{cand}"
+                    if "facebook.com" in cand and "/share/" not in cand and "login.php" not in cand:
+                        c_page, c_post = extract_post_identifiers(cand)
+                        if c_post:
+                            return c_page, c_post
         except Exception:
             pass
         return None, share_token
