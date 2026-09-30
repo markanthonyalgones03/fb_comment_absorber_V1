@@ -64,6 +64,16 @@ class TestUrlCleaningAndValidation:
         assert resolve_canonical_facebook_url("") == ""
         assert resolve_canonical_facebook_url(None) is None
 
+    def test_resolve_canonical_facebook_url_with_redirect_mock(self, monkeypatch):
+        import requests
+        class MockResp:
+            status_code = 302
+            headers = {"Location": "https://www.facebook.com/reel/1348897980655795/?share_url=xyz"}
+            url = "https://www.facebook.com/reel/1348897980655795/?share_url=xyz"
+        monkeypatch.setattr(requests, "get", lambda *a, **k: MockResp())
+        resolved = resolve_canonical_facebook_url("https://www.facebook.com/share/v/17ZB7Cpu5M/")
+        assert resolved == "https://www.facebook.com/reel/1348897980655795"
+
 
 class TestPostIdentifierExtraction:
 

@@ -92,18 +92,27 @@ def resolve_canonical_facebook_url(raw_url: str) -> str:
         return raw_url
     raw_url = raw_url.strip()
     if "/share/" in raw_url:
-        try:
-            import requests
-            session = requests.Session()
-            session.headers.update({
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            })
-            resp = session.get(raw_url, allow_redirects=True, timeout=8)
-            p = urlparse(resp.url).path
-            if "/share/" not in p and "facebook.com" in resp.url and "login.php" not in resp.url:
-                return clean_facebook_url(resp.url)
-        except Exception:
-            pass
+        import requests
+        uas = [
+            "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+            "curl/7.88.1"
+        ]
+        for ua in uas:
+            try:
+                resp = requests.get(raw_url, headers={"User-Agent": ua}, allow_redirects=False, timeout=8)
+                loc = resp.headers.get("Location")
+                if loc:
+                    if loc.startswith("/"):
+                        loc = "https://www.facebook.com" + loc
+                    p = urlparse(loc).path
+                    if "/share/" not in p and "facebook.com" in loc and "login" not in loc:
+                        return clean_facebook_url(loc)
+                if resp.status_code == 200:
+                    p = urlparse(resp.url).path
+                    if "/share/" not in p and "facebook.com" in resp.url and "login" not in resp.url:
+                        return clean_facebook_url(resp.url)
+            except Exception:
+                continue
     return clean_facebook_url(raw_url)
 
 
