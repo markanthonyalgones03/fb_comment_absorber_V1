@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from app.models import InvalidUrlError, Comment
 from app.utils import (
     clean_facebook_url,
+    resolve_canonical_facebook_url,
     extract_post_identifiers,
     parse_fb_timestamp,
     format_excel_date,
@@ -53,6 +54,15 @@ class TestUrlCleaningAndValidation:
     def test_empty_string_raises_error(self):
         with pytest.raises(InvalidUrlError):
             clean_facebook_url("")
+
+    def test_resolve_canonical_facebook_url_passthrough_normal_url(self):
+        url = "https://www.facebook.com/NASA/posts/1015948291029384"
+        res = resolve_canonical_facebook_url(url)
+        assert res == "https://www.facebook.com/NASA/posts/1015948291029384"
+
+    def test_resolve_canonical_facebook_url_handles_empty(self):
+        assert resolve_canonical_facebook_url("") == ""
+        assert resolve_canonical_facebook_url(None) is None
 
 
 class TestPostIdentifierExtraction:

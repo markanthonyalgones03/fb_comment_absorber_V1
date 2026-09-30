@@ -82,7 +82,7 @@ class MetaGraphApiCollector:
         self.on_status("CONNECTING", {"message": "Connecting to Meta Graph API..."})
         try:
             from app.facebook_api import FacebookApiClient
-            from app.utils import clean_facebook_url
+            from app.utils import clean_facebook_url, resolve_canonical_facebook_url
             from app.models import (
                 AppError,
                 InvalidUrlError,
@@ -94,7 +94,7 @@ class MetaGraphApiCollector:
             )
 
             client = FacebookApiClient(access_token=self.access_token)
-            clean_url = clean_facebook_url(raw_url)
+            clean_url = resolve_canonical_facebook_url(raw_url)
             self.on_status("ACCESSING", {"message": "Resolving Facebook post identifier..."})
             post_id = client.resolve_post_id(clean_url)
 
@@ -275,9 +275,9 @@ class PublicPostCommentCollector:
     def run(self, raw_url: str, max_comments: int = 150):
         try:
             import requests
-            from app.utils import clean_facebook_url
+            from app.utils import clean_facebook_url, resolve_canonical_facebook_url
             
-            clean_url = clean_facebook_url(raw_url)
+            clean_url = resolve_canonical_facebook_url(raw_url)
             self.on_status("ACCESSING", {"message": f"Connecting to public Facebook post engine for {clean_url}..."})
 
             # Start Apify Actor run
@@ -728,12 +728,17 @@ def get_current_user_session() -> UserSessionData:
     if hasattr(g, "user_session") and g.user_session is not None:
         return g.user_session
 
-    session_id = request.cookies.get(SESSION_COOKIE_NAME)
-    auth_header = request.headers.get("X-Session-ID") or request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        session_id = auth_header.replace("Bearer ", "").strip()
-    elif auth_header:
-        session_id = auth_header.strip()
+    session_id = request.headers.get("X-Session-ID") or request.headers.get("Authorization")
+    if session_id and session_id.startswith("Bearer "):
+        session_id = session_id.replace("Bearer ", "").strip()
+    elif session_id:
+        session_id = session_id.strip()
+
+    if not session_id:
+        session_id = request.args.get("session_id")
+
+    if not session_id:
+        session_id = request.cookies.get(SESSION_COOKIE_NAME)
 
     sess = user_manager.get_or_create(session_id)
     g.user_session = sess
@@ -742,7 +747,12 @@ def get_current_user_session() -> UserSessionData:
 
 @app.after_request
 def add_session_and_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    origin = request.headers.get("Origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-Session-ID"
     response.headers["Access-Control-Allow-Private-Network"] = "true"
@@ -756,7 +766,7 @@ def add_session_and_cors_headers(response):
                 g.user_session.session_id,
                 max_age=86400 * 30,
                 httponly=True,
-                samesite="Lax",
+                samesite="None" if is_secure else "Lax",
                 secure=is_secure
             )
     return response
@@ -1033,7 +1043,8 @@ def api_start_collect():
         return jsonify({"status": "error", "error": "Please paste a Facebook post URL first."}), 400
 
     try:
-        url = clean_facebook_url(url)
+        from app.utils import clean_facebook_url, resolve_canonical_facebook_url
+        url = resolve_canonical_facebook_url(url)
     except Exception as e:
         return jsonify({"status": "error", "error": f"Invalid URL: {str(e)}"}), 400
 

@@ -82,6 +82,31 @@ def clean_facebook_url(raw_url: str) -> str:
     return clean_url
 
 
+def resolve_canonical_facebook_url(raw_url: str) -> str:
+    """
+    Resolves mobile share URLs (e.g. facebook.com/share/v/..., facebook.com/share/p/...)
+    to their direct canonical destination URL (e.g. facebook.com/reel/1348897980655795)
+    so both Apify scraper and Meta API can access the real post.
+    """
+    if not raw_url or not isinstance(raw_url, str):
+        return raw_url
+    raw_url = raw_url.strip()
+    if "/share/" in raw_url:
+        try:
+            import requests
+            session = requests.Session()
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            })
+            resp = session.get(raw_url, allow_redirects=True, timeout=8)
+            p = urlparse(resp.url).path
+            if "/share/" not in p and "facebook.com" in resp.url and "login.php" not in resp.url:
+                return clean_facebook_url(resp.url)
+        except Exception:
+            pass
+    return clean_facebook_url(raw_url)
+
+
 def extract_post_identifiers(clean_url: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Extracts potential page identifier and post identifier from a normalized Facebook URL.

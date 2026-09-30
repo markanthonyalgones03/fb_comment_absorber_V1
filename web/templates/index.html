@@ -1954,6 +1954,26 @@ html, body {
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const API_BASE = isLocalhost ? window.location.origin : '';
 
+  function getClientSessionId() {
+    let sid = localStorage.getItem('comment_absorber_client_session');
+    if (!sid || sid.length < 8) {
+      sid = 'client_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
+      localStorage.setItem('comment_absorber_client_session', sid);
+    }
+    return sid;
+  }
+
+  function apiFetch(url, options = {}) {
+    const sid = getClientSessionId();
+    const opts = { ...options };
+    opts.headers = {
+      ...(opts.headers || {}),
+      'X-Session-ID': sid
+    };
+    opts.credentials = 'include';
+    return fetch(url, opts);
+  }
+
   // --- State ---
   const state = {
     comments: [],
@@ -2367,8 +2387,8 @@ html, body {
     if (!target) return;
     isSyncing = true;
     try {
-      const res = await fetch(`${target}/api/collect/state`, {
-        signal: AbortSignal.timeout(2800)
+      const res = await apiFetch(`${target}/api/collect/state`, {
+        signal: AbortSignal.timeout(3500)
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -2378,7 +2398,11 @@ html, body {
       if (data.stats) {
         updateKpis(data.stats);
         if (data.stats.status && data.stats.status !== state.currentStatus) {
-          updateStatusUI(data.stats.status, data.stats.message);
+          if (state.isCollecting && data.stats.status === 'IDLE') {
+            // Keep collecting; do not let transient empty state reset the UI
+          } else {
+            updateStatusUI(data.stats.status, data.stats.message);
+          }
         } else if (data.stats.message && el.statusMessage.textContent !== data.stats.message) {
           el.statusMessage.textContent = data.stats.message;
         }
@@ -2437,7 +2461,10 @@ html, body {
     state.currentBaseUrl = baseUrl;
 
     try {
-      state.eventSource = new EventSource(`${baseUrl}/api/collect/stream`);
+      const sid = getClientSessionId();
+      const sep = baseUrl.includes('?') ? '&' : '?';
+      const streamUrl = `${baseUrl}/api/collect/stream${sep}session_id=${encodeURIComponent(sid)}`;
+      state.eventSource = new EventSource(streamUrl, { withCredentials: true });
     } catch (e) {
       console.warn('Could not establish EventSource to', baseUrl, e);
       return;
@@ -2656,7 +2683,7 @@ html, body {
   async function checkAuthStatus() {
     const apiTarget = getApiTarget();
     try {
-      const res = await fetch(`${apiTarget}/api/auth/me`);
+      const res = await apiFetch(`${apiTarget}/api/auth/me`);
       if (res.ok) {
         const data = await res.json();
         state.isAuthenticated = !!data.authenticated;
@@ -2700,7 +2727,7 @@ html, body {
   async function handleLogout() {
     const apiTarget = getApiTarget();
     try {
-      await fetch(`${apiTarget}/api/auth/logout`, { method: 'POST' });
+      await apiFetch(`${apiTarget}/api/auth/logout`, { method: 'POST' });
     } catch (e) {}
     state.isAuthenticated = false;
     state.user = null;
@@ -2756,14 +2783,17 @@ html, body {
 
     try {
       const chosenMode = state.isAuthenticated ? 'api' : 'public';
-      const startRes = await fetch(`${apiTarget}/api/collect/start`, {
+      const startRes = await apiFetch(`${apiTarget}/api/collect/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url, mode: chosenMode })
       });
       const data = await startRes.json();
       if (data.success) {
-        updateStatusUI('ACCESSING', `Connecting to Facebook for post: ${data.clean_url || url}...`);
+        if (data.clean_url && el.postUrl && data.clean_url !== url) {
+          el.postUrl.value = data.clean_url;
+        }
+        updateStatusUI('ACCESSING', `Connecting to Facebook for: ${data.clean_url || url}...`);
         const engineLabel = data.engine === 'public' ? 'Public Post Engine' : 'Meta Graph API';
         showToast(`Absorbing real comments via ${engineLabel}...`, 'info');
       } else {
@@ -2860,7 +2890,7 @@ html, body {
   async function handleStop() {
     let apiTarget = getApiTarget();
     try {
-      await fetch(`${apiTarget}/api/collect/stop`, { method: 'POST' });
+      await apiFetch(`${apiTarget}/api/collect/stop`, { method: 'POST' });
     } catch (e) {}
 
     state.isCollecting = false;
@@ -2876,7 +2906,7 @@ html, body {
     }
     let apiTarget = getApiTarget();
     try {
-      await fetch(`${apiTarget}/api/collect/clear`, { method: 'POST' });
+      await apiFetch(`${apiTarget}/api/collect/clear`, { method: 'POST' });
     } catch (e) {}
 
     state.comments = [];
@@ -2891,7 +2921,7 @@ html, body {
   async function handleCollectAnother() {
     let apiTarget = getApiTarget();
     try {
-      await fetch(`${apiTarget}/api/collect/clear`, { method: 'POST' });
+      await apiFetch(`${apiTarget}/api/collect/clear`, { method: 'POST' });
     } catch (e) {}
 
     state.comments = [];
