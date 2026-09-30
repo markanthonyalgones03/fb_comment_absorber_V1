@@ -2535,25 +2535,26 @@ html, body {
   }
 
   // --- Backend Target & Status Management ---
-  let activeApiTarget = null;
+  const DEFAULT_BACKEND_URL = 'https://fb-comment-absorber-v1.onrender.com';
+  let activeApiTarget = DEFAULT_BACKEND_URL;
 
-  function updateBackendStatusUI(targetUrl, isOnline, metaConfigured, metaDetail) {
+  function updateBackendStatusUI(targetUrl, isOnline, metaConfigured, metaDetail, isConnecting = false) {
     if (el.engineDot) {
-      el.engineDot.className = isOnline ? 'engine-status-dot connected' : 'engine-status-dot';
-      el.engineDot.style.background = isOnline ? '#10b981' : '#ef4444';
+      el.engineDot.className = isOnline ? 'engine-status-dot connected' : (isConnecting ? 'engine-status-dot connecting' : 'engine-status-dot');
+      el.engineDot.style.background = isOnline ? '#10b981' : (isConnecting ? '#f59e0b' : '#ef4444');
     }
     if (el.engineBtnText) {
-      el.engineBtnText.textContent = isOnline ? 'API Connected' : 'API Offline';
+      el.engineBtnText.textContent = isOnline ? 'API Connected' : (isConnecting ? 'API Waking Up...' : 'API Reconnecting...');
     }
     if (el.backendStatusDot) {
-      el.backendStatusDot.style.background = isOnline ? '#10b981' : '#ef4444';
+      el.backendStatusDot.style.background = isOnline ? '#10b981' : (isConnecting ? '#f59e0b' : '#ef4444');
     }
     if (el.backendStatusText) {
-      el.backendStatusText.textContent = isOnline ? 'Connected' : 'Offline';
-      el.backendStatusText.style.color = isOnline ? '#10b981' : '#ef4444';
+      el.backendStatusText.textContent = isOnline ? 'Connected' : (isConnecting ? 'Waking Up Cloud Server...' : 'Reconnecting...');
+      el.backendStatusText.style.color = isOnline ? '#10b981' : (isConnecting ? '#f59e0b' : '#ef4444');
     }
     if (el.backendStatusUrl) {
-      el.backendStatusUrl.textContent = targetUrl || 'No Backend Service Configured';
+      el.backendStatusUrl.textContent = targetUrl || DEFAULT_BACKEND_URL;
     }
     if (el.metaStatusDot) {
       el.metaStatusDot.style.background = metaConfigured ? '#10b981' : '#f59e0b';
@@ -2570,21 +2571,21 @@ html, body {
     }
   }
 
-  async function checkAdminBackendStatus(targetUrl) {
-    if (!targetUrl) return false;
+  async function checkAdminBackendStatus(targetUrl, timeoutMs = 8000) {
+    const urlToCheck = targetUrl || DEFAULT_BACKEND_URL;
     try {
-      const res = await fetch(`${targetUrl}/api/admin/status`, { signal: AbortSignal.timeout(3500) });
+      const res = await fetch(`${urlToCheck}/api/admin/status`, { signal: AbortSignal.timeout(timeoutMs) });
       if (res.ok) {
         const data = await res.json();
-        updateBackendStatusUI(targetUrl, true, data.meta_token_configured, data.token_preview || 'v21.0 Official');
+        updateBackendStatusUI(urlToCheck, true, data.meta_token_configured, data.token_preview || 'v21.0 Official');
         return true;
       }
     } catch (e) {}
 
     try {
-      const healthRes = await fetch(`${targetUrl}/api/health`, { signal: AbortSignal.timeout(3000) });
+      const healthRes = await fetch(`${urlToCheck}/api/health`, { signal: AbortSignal.timeout(Math.min(timeoutMs, 5000)) });
       if (healthRes.ok) {
-        updateBackendStatusUI(targetUrl, true, false, 'Backend Online');
+        updateBackendStatusUI(urlToCheck, true, false, 'Backend Online');
         return true;
       }
     } catch (e) {}
@@ -2604,45 +2605,62 @@ html, body {
     // 1. If loaded directly from the backend host
     if (isBackendHost) {
       activeApiTarget = window.location.origin;
-      await checkAdminBackendStatus(activeApiTarget);
+      await checkAdminBackendStatus(activeApiTarget, 4000);
       return activeApiTarget;
     }
 
     // 2. Check localStorage saved backend URL
     const saved = localStorage.getItem('comment_absorber_engine_url');
     if (saved && saved.trim() && !saved.includes('trycloudflare.com')) {
-      const target = saved.trim().replace(/\/+$/, '');
-      const ok = await checkAdminBackendStatus(target);
-      if (ok) {
-        activeApiTarget = target;
-        return activeApiTarget;
-      }
+      activeApiTarget = saved.trim().replace(/\/+$/, '');
+      const ok = await checkAdminBackendStatus(activeApiTarget, 6000);
+      if (ok) return activeApiTarget;
     }
 
     // 3. Fallback: Check backend_url.json if hosted on GitHub Pages
     try {
-      const res = await fetch('backend_url.json', { cache: 'no-store', signal: AbortSignal.timeout(2000) });
+      const res = await fetch('backend_url.json', { cache: 'no-store', signal: AbortSignal.timeout(3000) });
       if (res.ok) {
         const data = await res.json();
         if (data && data.url && !data.url.includes('trycloudflare.com')) {
-          const target = data.url.replace(/\/+$/, '');
-          const ok = await checkAdminBackendStatus(target);
-          if (ok) {
-            activeApiTarget = target;
-            return activeApiTarget;
-          }
+          activeApiTarget = data.url.replace(/\/+$/, '');
         }
       }
     } catch (e) {}
 
-    // No backend reachable
-    activeApiTarget = null;
-    updateBackendStatusUI('', false, false, 'Not connected');
-    return null;
+    if (!activeApiTarget) {
+      activeApiTarget = DEFAULT_BACKEND_URL;
+    }
+
+    // Initial check (non-blocking: show waking up if cold start)
+    updateBackendStatusUI(activeApiTarget, false, false, 'Waking up cloud server...', true);
+    checkAdminBackendStatus(activeApiTarget, 7000).then(ok => {
+      if (!ok) {
+        updateBackendStatusUI(activeApiTarget, false, false, 'Server is spinning up...', true);
+      }
+    });
+
+    return activeApiTarget;
   }
 
   function getApiTarget() {
-    return activeApiTarget || '';
+    return activeApiTarget || DEFAULT_BACKEND_URL;
+  }
+
+  // Recurring health poller: keep trying to connect until API is online
+  function startBackendHealthPoller() {
+    setInterval(async () => {
+      const target = getApiTarget();
+      if (!target) return;
+      if (el.engineBtnText && el.engineBtnText.textContent !== 'API Connected') {
+        const ok = await checkAdminBackendStatus(target, 6000);
+        if (ok) {
+          syncWithBackend();
+          initEventStream(target);
+          checkAuthStatus();
+        }
+      }
+    }, 6000);
   }
 
   function openEngineModal() {
@@ -2660,9 +2678,10 @@ html, body {
     const val = el.inputCustomEngine ? el.inputCustomEngine.value.trim().replace(/\/+$/, '') : '';
     if (!val) {
       localStorage.removeItem('comment_absorber_engine_url');
-      activeApiTarget = null;
-      updateBackendStatusUI('', false, false, 'Cleared');
-      showToast('Backend URL cleared.', 'info');
+      activeApiTarget = DEFAULT_BACKEND_URL;
+      updateBackendStatusUI(DEFAULT_BACKEND_URL, false, false, 'Reset to Default', true);
+      showToast('Reset to default Render backend.', 'info');
+      checkAdminBackendStatus(DEFAULT_BACKEND_URL);
       return;
     }
     showToast('Connecting to backend service...', 'info');
@@ -2765,11 +2784,6 @@ html, body {
     }
 
     const apiTarget = getApiTarget();
-    if (!apiTarget) {
-      updateStatusUI('ERROR', 'Comment service is temporarily unavailable. Please verify your backend service is running or configure the backend URL in Settings.');
-      showToast('Comment service is temporarily unavailable. Please verify backend is running.', 'error');
-      return;
-    }
 
     // Clear feed and prepare UI
     state.comments = [];
@@ -2777,7 +2791,14 @@ html, body {
     renderCommentsList();
     updateKpis({ count: 0, unique_authors: 0, elapsed_seconds: 0, comments_per_sec: 0 });
 
-    updateStatusUI('CONNECTING', 'Connecting to Facebook Comment Absorber backend...');
+    const isConnected = el.engineBtnText && el.engineBtnText.textContent === 'API Connected';
+    if (!isConnected) {
+      updateStatusUI('CONNECTING', 'Connecting to server (waking up cloud engine, please wait ~15-25s)...');
+      showToast('Waking up cloud backend engine... Please hold on.', 'info');
+    } else {
+      updateStatusUI('CONNECTING', 'Connecting to Facebook Comment Absorber backend...');
+    }
+
     initEventStream(apiTarget);
     startActivePolling();
 
@@ -2786,10 +2807,12 @@ html, body {
       const startRes = await apiFetch(`${apiTarget}/api/collect/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, mode: chosenMode })
+        body: JSON.stringify({ url: url, mode: chosenMode }),
+        signal: AbortSignal.timeout(60000)
       });
       const data = await startRes.json();
       if (data.success) {
+        updateBackendStatusUI(apiTarget, true, true, 'Backend Online');
         if (data.clean_url && el.postUrl && data.clean_url !== url) {
           el.postUrl.value = data.clean_url;
         }
@@ -2804,8 +2827,15 @@ html, body {
         }
       }
     } catch (err) {
-      updateStatusUI('ERROR', 'Comment service is temporarily unavailable. Could not reach backend server.');
-      showToast('Comment service is temporarily unavailable. Could not reach backend server.', 'error');
+      console.error('Collect start error:', err);
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        updateStatusUI('ERROR', 'Cloud server is still spinning up. Please click Start again in a few moments.');
+        showToast('Server is waking up from idle. Please click Start again in 10-15 seconds.', 'info');
+      } else {
+        updateStatusUI('ERROR', 'Comment service is temporarily unavailable. Could not reach backend server.');
+        showToast('Comment service is temporarily unavailable. Could not reach backend server.', 'error');
+      }
+      checkAdminBackendStatus(apiTarget, 5000);
     }
   }
 
@@ -3193,6 +3223,7 @@ html, body {
     checkUrlAuthParams();
     checkInitialBackendStatus();
     checkAuthStatus();
+    startBackendHealthPoller();
   }
 
   if (document.readyState === 'loading') {
