@@ -97,10 +97,39 @@ class WebComment:
     timestamp_raw: float # Epoch seconds for sorting
     avatar_color: str = "#1877F2"
     avatar_initials: str = "FB"
+    original_text: str = ""
+    translated_text: Optional[str] = None
+    is_translation: bool = False
+    original_field_used: str = "message"
+    raw_source_text: str = ""
+    is_reply: bool = False
+    parent_id: Optional[str] = None
+
+    def __post_init__(self):
+        if not self.original_text:
+            self.original_text = self.message
+        if not self.raw_source_text:
+            self.raw_source_text = self.message
+        # Enforce that message is ALWAYS the original comment text
+        self.message = self.original_text
+        if self.parent_id:
+            self.is_reply = True
+
+    @property
+    def debug_diagnostic(self) -> Dict[str, Any]:
+        return {
+            "comment_id": self.comment_id,
+            "raw_source_text": self.raw_source_text or self.message,
+            "selected_display_text": self.original_text or self.message,
+            "translation_detected": "YES" if self.is_translation else "NO",
+            "original_field_used": self.original_field_used
+        }
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["author"] = self.user_name
+        d["message"] = self.original_text or self.message
+        d["debug_diagnostic"] = self.debug_diagnostic
         return d
 
     @property
@@ -112,6 +141,8 @@ class WebComment:
             return self.user_name
         if key in ("created_time", "time_str", "time"):
             return self.created_time
+        if key in ("original_text", "comment"):
+            return self.original_text or self.message
         return getattr(self, key)
 
 
@@ -211,8 +242,15 @@ class RealBrowserCommentCollector(BaseCollector):
             opts.add_argument("--disable-blink-features=AutomationControlled")
             opts.add_argument("--window-size=1280,960")
             opts.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+            opts.add_argument("--disable-features=Translate")
+            opts.add_argument("--disable-translate")
             opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
             opts.add_experimental_option("useAutomationExtension", False)
+            opts.add_experimental_option("prefs", {
+                "translate.enabled": False,
+                "translate_whitelists": {},
+                "intl.accept_languages": "en-US,en"
+            })
 
             if os.environ.get("CHROME_BIN"):
                 opts.binary_location = os.environ["CHROME_BIN"]
@@ -232,6 +270,8 @@ class RealBrowserCommentCollector(BaseCollector):
                 edge_opts.add_argument(f"--user-data-dir={str(self.profile_dir.resolve())}")
                 edge_opts.add_argument("--disable-notifications")
                 edge_opts.add_argument("--mute-audio")
+                edge_opts.add_argument("--disable-features=Translate")
+                edge_opts.add_argument("--disable-translate")
                 edge_opts.add_argument("--remote-debugging-port=0")
                 edge_opts.add_argument("--disable-blink-features=AutomationControlled")
                 edge_opts.add_argument("--window-size=1280,960")
@@ -425,12 +465,21 @@ class RealBrowserCommentCollector(BaseCollector):
                 dom_comments = self._extract_comments_from_dom(self.driver)
 
                 newly_found = 0
-                for c_id, c_author, c_msg, c_time, c_raw_ts in dom_comments:
-                    clean_msg = c_msg.strip()
+                for item in dom_comments:
+                    if len(item) == 11:
+                        c_id, c_author, c_msg, c_time, c_raw_ts, c_orig, c_raw, c_trans, c_field, c_reply, c_pid = item
+                    elif len(item) == 5:
+                        c_id, c_author, c_msg, c_time, c_raw_ts = item
+                        c_orig, c_raw, c_trans, c_field, c_reply, c_pid = c_msg, c_msg, False, "dom_auto", False, None
+                    else:
+                        continue
+
+                    # Guarantee: clean_msg is ALWAYS the authentic original comment text
+                    clean_msg = (c_orig or c_msg).strip()
                     if not clean_msg:
                         continue
 
-                    # Uniquely identify comment without dropping identical short replies
+                    # Uniquely identify comment by ID without dropping identical comments from different users
                     if c_id:
                         sig = f"id_{c_id}"
                     else:
@@ -451,7 +500,13 @@ class RealBrowserCommentCollector(BaseCollector):
                             created_time=c_time,
                             timestamp_raw=c_raw_ts,
                             avatar_color=color,
-                            avatar_initials=initials
+                            avatar_initials=initials,
+                            original_text=clean_msg,
+                            raw_source_text=c_raw or clean_msg,
+                            is_translation=c_trans,
+                            original_field_used=c_field,
+                            is_reply=c_reply,
+                            parent_id=c_pid
                         )
                         # Immediately stream to web client!
                         try:
@@ -695,16 +750,16 @@ class RealBrowserCommentCollector(BaseCollector):
         Batch-clicks 'View more comments', 'View previous comments', nested replies ('View 1 reply', 'mga tugon'),
         and expands inline '... See more' / 'Tingnan pa' text inside browser memory without bottlenecks.
         """
-        js_script = """
+        js_script = r"""
         try {
             let clicked = false;
 
             // 1. Expand all inline '... See more' / 'Tingnan ang higit pa' buttons inside comments
-            const allButtons = document.querySelectorAll("div[role='button'], span[role='button'], span");
+            const allButtons = document.querySelectorAll("div[role='button'], span[role='button'], span, a[role='button']");
             for (let i = 0; i < allButtons.length; i++) {
                 const el = allButtons[i];
                 const t = (el.textContent || "").trim().toLowerCase();
-                if (t === "see more" || t === "see more..." || t === "tingnan ang higit pa" || t === "basahin ang higit pa" || t === "tingnan pa") {
+                if (t === "see more" || t === "see more..." || t === "tingnan ang higit pa" || t === "basahin ang higit pa" || t === "tingnan pa" || t === "tan-awa pa") {
                     try {
                         el.click();
                         clicked = true;
@@ -712,8 +767,21 @@ class RealBrowserCommentCollector(BaseCollector):
                 }
             }
 
-            // 2. Expand comment batches & nested replies (English & Tagalog)
-            const expandRegex = /(view\\s+\\d*\\s*(more|previous)?\\s*comments?|see\\s+more\\s+comments?|more\\s+comments|tingnan\\s+ang\\s+.*komento|view\\s+\\d*\\s*repl(y|ies)|view\\s+reply|mga\\s+tugon|\\d+\\s+na\\s+tugon|\\d+\\s+repl(y|ies)|view\\s+previous)/i;
+            // 1b. Revert any auto-translated comments by clicking "See original" / "Tingnan ang orihinal" / "Tan-awa ang orihinal" / "Ver original"
+            const seeOriginalRegex = /^(?:see\s+original|tingnan\s+ang\s+orihinal|tan-awa\s+ang\s+orihinal|ver\s+original|voir\s+l['’]origine)(?:\s*\([^)]*\))?$/i;
+            for (let i = 0; i < allButtons.length; i++) {
+                const el = allButtons[i];
+                const t = (el.textContent || "").trim();
+                if (t.length > 2 && t.length < 50 && seeOriginalRegex.test(t)) {
+                    try {
+                        el.click();
+                        clicked = true;
+                    } catch(e) {}
+                }
+            }
+
+            // 2. Expand comment batches & nested replies (English, Tagalog, Cebuano/Bisaya)
+            const expandRegex = /(view\s+\d*\s*(more|previous)?\s*comments?|see\s+more\s+comments?|more\s+comments|tingnan\s+ang\s+.*komento|tan-awa\s+ang\s+.*komento|view\s+\d*\s*repl(y|ies)|view\s+reply|mga\s+tugon|\d+\s+na\s+tugon|mga\s+tubag|\d+\s+ka\s+tubag|\d+\s+repl(y|ies)|view\s+previous)/i;
 
             let count = 0;
             const clickCandidates = document.querySelectorAll("span, div[role='button']");
@@ -826,14 +894,25 @@ class RealBrowserCommentCollector(BaseCollector):
         """
         self._clean_page_docks(driver)
 
-        js_extractor = """
+        js_extractor = r"""
         try {
-            // 1. Expand 'See more' text inside comments first so full text is revealed
-            const seeMoreBtns = document.querySelectorAll("div[role='button'], span[role='button']");
-            for (let i = 0; i < seeMoreBtns.length; i++) {
-                const t = (seeMoreBtns[i].textContent || "").trim().toLowerCase();
-                if (t === "see more" || t === "tingnan ang higit pa" || t === "see more...") {
-                    try { seeMoreBtns[i].click(); } catch(e) {}
+            // 1a. Revert any auto-translations on comments by clicking all 'See original' buttons first!
+            const seeOrigRegex = /^(?:see\s+original|tingnan\s+ang\s+orihinal|tan-awa\s+ang\s+orihinal|ver\s+original|voir\s+l['’]origine)(?:\s*\([^)]*\))?$/i;
+            const actionButtons = document.querySelectorAll("div[role='button'], span[role='button'], a[role='button'], span, div");
+            for (let i = 0; i < actionButtons.length; i++) {
+                const el = actionButtons[i];
+                const t = (el.textContent || "").trim();
+                if (t.length > 2 && t.length < 50 && seeOrigRegex.test(t)) {
+                    try { el.click(); } catch(e) {}
+                }
+            }
+
+            // 1b. Expand 'See more' text inside comments first so full text is revealed
+            for (let i = 0; i < actionButtons.length; i++) {
+                const el = actionButtons[i];
+                const t = (el.textContent || "").trim().toLowerCase();
+                if (t === "see more" || t === "tingnan ang higit pa" || t === "see more..." || t === "tingnan pa" || t === "tan-awa pa") {
+                    try { el.click(); } catch(e) {}
                 }
             }
 
@@ -958,6 +1037,20 @@ class RealBrowserCommentCollector(BaseCollector):
 
                     if (/^\\d{1,2}:\\d{2}$/.test(author)) continue;
 
+                    // Detect if comment was auto-translated and revert/click See original
+                    let isTranslation = false;
+                    let origFieldUsed = "dom_auto";
+                    const subBtns = el.querySelectorAll("div[role='button'], span[role='button'], a[role='button'], span");
+                    for (let b = 0; b < subBtns.length; b++) {
+                        const bt = (subBtns[b].textContent || "").trim();
+                        if (bt.length > 2 && bt.length < 50 && seeOrigRegex.test(bt)) {
+                            isTranslation = true;
+                            origFieldUsed = "dom_see_original";
+                            try { subBtns[b].click(); } catch(e) {}
+                            break;
+                        }
+                    }
+
                     let message = "";
                     const autoNodes = el.querySelectorAll("[dir='auto']");
                     for (const d of autoNodes) {
@@ -1029,10 +1122,25 @@ class RealBrowserCommentCollector(BaseCollector):
                         }
                     }
 
+                    // Distinguish replies vs top-level comments
+                    let isReply = false;
+                    let parentId = "";
+                    if (aria.toLowerCase().includes("reply by") || aria.toLowerCase().includes("tugon ni") || aria.toLowerCase().includes("tubag ni")) {
+                        isReply = true;
+                    } else if (el.closest("ul[role='group'], div[role='group'], div[aria-label*='replies' i]")) {
+                        isReply = true;
+                    }
+
                     results.push({
                         id: commentId,
                         author: author,
                         message: message,
+                        original_text: message,
+                        raw_source_text: message,
+                        is_translation: isTranslation,
+                        original_field_used: origFieldUsed,
+                        is_reply: isReply,
+                        parent_id: parentId,
                         time_raw: timeRaw
                     });
                 } catch(err) {}
@@ -1059,6 +1167,12 @@ class RealBrowserCommentCollector(BaseCollector):
                     author = item.get("author", "Facebook User")
                     msg = item.get("message", "")
                     time_raw = item.get("time_raw", "")
+                    orig_text = item.get("original_text", msg)
+                    raw_src = item.get("raw_source_text", msg)
+                    is_trans = bool(item.get("is_translation", False))
+                    orig_field = item.get("original_field_used", "dom_auto")
+                    is_rep = bool(item.get("is_reply", False))
+                    p_id = item.get("parent_id", "")
 
                     timestamp = now
                     if time_raw:
@@ -1067,7 +1181,7 @@ class RealBrowserCommentCollector(BaseCollector):
                             timestamp = parsed_dt
 
                     time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-                    results.append((c_id, author, msg, time_str, timestamp.timestamp()))
+                    results.append((c_id, author, msg, time_str, timestamp.timestamp(), orig_text, raw_src, is_trans, orig_field, is_rep, p_id))
                 except Exception:
                     continue
         else:
@@ -1108,7 +1222,8 @@ class RealBrowserCommentCollector(BaseCollector):
                                     break
 
                         if message:
-                            results.append(("", author, message, now.strftime("%Y-%m-%d %H:%M:%S"), now.timestamp()))
+                            is_rep = bool(m_reply)
+                            results.append(("", author, message, now.strftime("%Y-%m-%d %H:%M:%S"), now.timestamp(), message, message, False, "dom_fallback", is_rep, None))
                     except Exception:
                         continue
             except Exception:
@@ -1186,17 +1301,19 @@ class RealBrowserCommentCollector(BaseCollector):
 
 
 # --- Simulator for Demo Mode ---
+# --- Simulator for Demo Mode ---
 SAMPLE_DEMO_COMMENTS = [
-    ("Maria Santos", "Interested po! Magkano po ang shipping to Davao City? Salamat! ❤️"),
-    ("John Paul Ramirez", "Mine 1 pc medium black please! Sent you a private message. ✨"),
-    ("Angela Nicole Cruz", "Legit seller! Order arrived in 2 days and quality is super solid. 👏💯"),
-    ("Mark Anthony Reyes", "Available pa po ba ito? Looking for bulk order for our hardware store."),
-    ("Jasmine Flores", "How much po pag wholesale? Need 10 boxes for our upcoming project."),
-    ("Christian Dave Tan", "PM sent po! Pakicheck ng inbox for invoice details. 🙏"),
-    ("Kaye Anne Bautista", "Super ganda! Will definitely buy again next week. Kudos to the team! 🎉"),
-    ("Bryan Joshua Mendoza", "Hm po location nyo? Can we pick up directly at the warehouse?"),
-    ("Sarah Mae Gonzales", "Mine large blue! Pa-reserve po please, payment via GCash. 💳"),
-    ("Rodel De Guzman", "Salamat boss, dumating na kahapon. Well packaged and complete accessories."),
+    # (name, original_text, translated_text, is_translation, original_field_used, is_reply, parent_id)
+    ("Maria Santos", "Interested po! Magkano po ang shipping to Davao City? Salamat! ❤️", None, False, "message", False, None),
+    ("Juan Dela Cruz", "Grabe ka gwapa ani uy 😍", "You are so beautiful 😍", True, "original_text", False, None),
+    ("Jay Paul Benolirao", "Maayo kaayo ni bai hahaha", "This is very good bro hahaha", True, "original_text", False, None),
+    ("Angela Nicole Cruz", "Legit seller! Order arrived in 2 days and quality is super solid. 👏💯", None, False, "message", False, None),
+    ("Gian Dhale Cameniro", "HAHAHAHA 😂😂😂 grabe jud ka", None, False, "message", True, "demo_2"),
+    ("Carlos Mendoza", "¡Excelente producto! Me llegó súper rápido a casa 📦", "Excellent product! It arrived super fast at home 📦", True, "original_text", False, None),
+    ("Kenji Takahashi", "とても素敵な商品ですね！ありがとうございます ✨", "It's a very nice product! Thank you very much ✨", True, "original_text", False, None),
+    ("Sarah Mae Gonzales", "Mine large blue! Pa-reserve po please, payment via GCash. 💳", None, False, "message", False, None),
+    ("Rodel De Guzman", "Salamat boss, dumating na kahapon. Well packaged and complete accessories.", None, False, "message", True, "demo_4"),
+    ("Ella Romero Sadang", "You're doing great Paul! Keep it up 🙌", None, False, "message", False, None),
 ]
 
 class SimulatorCollector(BaseCollector):
@@ -1216,21 +1333,33 @@ class SimulatorCollector(BaseCollector):
                 self.on_status("CANCELLED", {"message": f"Simulation stopped at {count} comments."})
                 return
 
-            name, msg = random.choice(SAMPLE_DEMO_COMMENTS)
+            sample = SAMPLE_DEMO_COMMENTS[i % len(SAMPLE_DEMO_COMMENTS)]
+            name, orig_msg, trans_msg, is_trans, orig_field, is_rep, parent_id = sample
+
             comment_time = start_time + timedelta(seconds=i * random.randint(15, 45))
             time_str = comment_time.strftime("%Y-%m-%d %H:%M:%S")
             initials, color = generate_avatar_data(name)
 
             count += 1
+            cid = f"demo_{count}"
+            pid = f"demo_{max(1, count - 1)}" if is_rep else None
+
             comment = WebComment(
                 index=count,
-                comment_id=f"demo_{count}",
+                comment_id=cid,
                 user_name=name,
-                message=msg,
+                message=orig_msg,
                 created_time=time_str,
                 timestamp_raw=comment_time.timestamp(),
                 avatar_color=color,
-                avatar_initials=initials
+                avatar_initials=initials,
+                original_text=orig_msg,
+                raw_source_text=orig_msg,
+                translated_text=trans_msg,
+                is_translation=is_trans,
+                original_field_used=orig_field,
+                is_reply=is_rep,
+                parent_id=pid
             )
             self.on_comment(comment)
             time.sleep(speed)
@@ -1277,7 +1406,8 @@ class ExcelReportExporter:
 
         for row_idx, c in enumerate(sorted_comments, start=2):
             u_clean = sanitize_for_excel(c.user_name)
-            m_clean = sanitize_for_excel(c.message)
+            # Guarantees that Excel export ALWAYS writes the authentic original comment text
+            m_clean = sanitize_for_excel(getattr(c, "original_text", None) or c.message)
             d_clean = sanitize_for_excel(c.created_time)
 
             if include_names:

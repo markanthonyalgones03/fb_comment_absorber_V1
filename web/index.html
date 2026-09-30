@@ -865,6 +865,99 @@ html, body {
   overflow-wrap: anywhere;
 }
 
+/* Developer-Only Diagnostic Panel (Debug Mode) */
+.developer-diagnostic {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-left: 3px solid #3b82f6;
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.diag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  color: #60a5fa;
+  margin-bottom: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.diag-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diag-row {
+  display: flex;
+  gap: 8px;
+}
+
+.diag-lbl {
+  min-width: 155px;
+  color: #94a3b8;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.diag-val {
+  color: #f1f5f9;
+  word-break: break-all;
+}
+
+.diag-badge-yes {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
+.diag-badge-no {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
+.badge-reply {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.dev-debug-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: #60a5fa;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
 /* Footer */
 .app-footer {
   text-align: center;
@@ -1529,6 +1622,7 @@ html, body {
         <div>
           <span class="brand-name">Comment Absorber</span>
           <span class="brand-sub">Facebook Comment Collector</span>
+          <span id="dev-debug-indicator" class="dev-debug-pill" style="display: none;">🛠️ DEBUG MODE (Ctrl+Shift+D)</span>
         </div>
       </div>
 
@@ -1670,7 +1764,7 @@ html, body {
       <div class="metric-card">
         <div class="metric-label">TOTAL COMMENTS</div>
         <div class="metric-value" id="kpi-total">0</div>
-        <div class="metric-desc">From target post</div>
+        <div class="metric-desc" id="kpi-breakdown">Top-level: 0 · Replies: 0</div>
       </div>
 
       <div class="metric-card">
@@ -1876,12 +1970,14 @@ html, body {
     currentBaseUrl: null,
     isAuthenticated: false,
     user: null,
+    debugMode: new URLSearchParams(window.location.search).has('debug') || (localStorage.getItem('absorber_debug_mode') === 'true'),
   };
 
   // --- DOM Elements ---
   const el = {
     postUrl: document.getElementById('post-url'),
     clearUrlBtn: document.getElementById('clear-url-btn'),
+    devDebugIndicator: document.getElementById('dev-debug-indicator'),
     
     // Facebook Auth Elements
     btnLoginFb: document.getElementById('btn-login-fb'),
@@ -1912,6 +2008,7 @@ html, body {
     
     // KPIs
     kpiTotal: document.getElementById('kpi-total'),
+    kpiBreakdown: document.getElementById('kpi-breakdown'),
     kpiSpeed: document.getElementById('kpi-speed'),
     kpiTime: document.getElementById('kpi-time'),
     kpiUnique: document.getElementById('kpi-unique'),
@@ -2055,6 +2152,11 @@ html, body {
   function updateKpis(stats) {
     if (!stats) return;
     el.kpiTotal.textContent = Number(stats.count || 0).toLocaleString();
+    if (el.kpiBreakdown) {
+      const topLevel = Number(stats.top_level_count !== undefined ? stats.top_level_count : (stats.count || 0)).toLocaleString();
+      const replies = Number(stats.replies_count || 0).toLocaleString();
+      el.kpiBreakdown.textContent = `Top-level: ${topLevel} · Replies: ${replies}`;
+    }
     el.kpiSpeed.innerHTML = `${stats.comments_per_sec || 0} <span class="metric-unit">/sec</span>`;
     el.kpiTime.textContent = formatDuration(stats.elapsed_seconds || 0);
     el.kpiUnique.textContent = Number(stats.unique_authors || 0).toLocaleString();
@@ -2086,6 +2188,18 @@ html, body {
     const row = document.createElement('div');
     row.className = `comment-row ${isLatest ? 'is-latest' : ''}`;
     row.id = `comment-${c.comment_id}`;
+
+    const diag = c.debug_diagnostic || {
+      comment_id: c.comment_id || 'UNKNOWN',
+      raw_source_text: c.raw_source_text || c.message || '',
+      selected_display_text: c.original_text || c.message || '',
+      translation_detected: (c.is_translation ? 'YES' : 'NO'),
+      original_field_used: c.original_field_used || 'message'
+    };
+
+    const diagStyle = state.debugMode ? 'display: block;' : 'display: none;';
+    const transClass = diag.translation_detected === 'YES' ? 'diag-badge-yes' : 'diag-badge-no';
+
     row.innerHTML = `
       <div class="row-index">#${c.index}</div>
       <div class="row-avatar" style="background-color: ${escapeHtml(c.avatar_color || '#1877f2')}">
@@ -2095,8 +2209,23 @@ html, body {
         <div class="row-header">
           <div class="row-author">${escapeHtml(c.user_name || 'Facebook User')}</div>
           <div class="row-time">${escapeHtml(c.created_time || '')}</div>
+          ${c.is_reply ? '<span class="badge-reply">Reply</span>' : ''}
         </div>
         <div class="row-message">${escapeHtml(c.message || '')}</div>
+
+        <div class="developer-diagnostic" style="${diagStyle}">
+          <div class="diag-header">
+            <span>🛠️ Developer Diagnostic</span>
+            <span class="${transClass}">Translation detected: ${escapeHtml(diag.translation_detected)}</span>
+          </div>
+          <div class="diag-body">
+            <div class="diag-row"><span class="diag-lbl">Comment ID:</span> <span class="diag-val">${escapeHtml(diag.comment_id)}</span></div>
+            <div class="diag-row"><span class="diag-lbl">Raw source text:</span> <span class="diag-val">${escapeHtml(diag.raw_source_text)}</span></div>
+            <div class="diag-row"><span class="diag-lbl">Selected display text:</span> <span class="diag-val">${escapeHtml(diag.selected_display_text)}</span></div>
+            <div class="diag-row"><span class="diag-lbl">Translation detected:</span> <span class="diag-val ${transClass}">${escapeHtml(diag.translation_detected)}</span></div>
+            <div class="diag-row"><span class="diag-lbl">Original field used:</span> <span class="diag-val">${escapeHtml(diag.original_field_used)}</span></div>
+          </div>
+        </div>
       </div>
     `;
     return row;
@@ -2988,6 +3117,29 @@ html, body {
       el.engineModal.addEventListener('click', (e) => {
         if (e.target === el.engineModal) closeEngineModal();
       });
+    }
+
+    // Global Developer Diagnostic Toggle (Ctrl+Shift+D / Cmd+Shift+D)
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault();
+        state.debugMode = !state.debugMode;
+        localStorage.setItem('absorber_debug_mode', state.debugMode ? 'true' : 'false');
+
+        document.querySelectorAll('.developer-diagnostic').forEach(d => {
+          d.style.display = state.debugMode ? 'block' : 'none';
+        });
+
+        if (el.devDebugIndicator) {
+          el.devDebugIndicator.style.display = state.debugMode ? 'inline-flex' : 'none';
+        }
+
+        showToast(state.debugMode ? '🛠️ Developer Diagnostic Mode ENABLED' : 'Developer Diagnostic Mode disabled', 'info');
+      }
+    });
+
+    if (state.debugMode && el.devDebugIndicator) {
+      el.devDebugIndicator.style.display = 'inline-flex';
     }
   }
 

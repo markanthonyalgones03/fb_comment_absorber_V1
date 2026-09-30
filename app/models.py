@@ -5,7 +5,7 @@ Data models and custom exceptions for Facebook Comment Collector.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 
 class CollectionStatus(str, Enum):
@@ -39,6 +39,32 @@ class Comment:
     created_time: datetime
     user_id: Optional[str] = None
     parent_id: Optional[str] = None
+    original_text: str = ""
+    translated_text: Optional[str] = None
+    is_translation: bool = False
+    original_field_used: str = "message"
+    raw_source_text: str = ""
+    is_reply: bool = False
+
+    def __post_init__(self):
+        if not self.original_text:
+            self.original_text = self.message
+        if not self.raw_source_text:
+            self.raw_source_text = self.message
+        # Enforce that message is ALWAYS the original comment text
+        self.message = self.original_text
+        if self.parent_id:
+            self.is_reply = True
+
+    @property
+    def debug_diagnostic(self) -> Dict[str, Any]:
+        return {
+            "comment_id": self.comment_id,
+            "raw_source_text": self.raw_source_text or self.message,
+            "selected_display_text": self.original_text or self.message,
+            "translation_detected": "YES" if self.is_translation else "NO",
+            "original_field_used": self.original_field_used
+        }
 
 
 @dataclass

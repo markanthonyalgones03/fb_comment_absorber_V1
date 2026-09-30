@@ -254,7 +254,12 @@ class FacebookApiClient:
                 user_id=str(user_id) if user_id else None,
                 message=str(message),
                 created_time=created_time,
-                parent_id=str(parent_id) if parent_id else None
+                parent_id=str(parent_id) if parent_id else None,
+                original_text=str(message),
+                raw_source_text=str(message),
+                is_translation=False,
+                original_field_used="message",
+                is_reply=bool(parent_id)
             ))
 
         next_url = paging.get("next")
@@ -290,7 +295,12 @@ class FacebookApiClient:
                     user_id=str(user_id) if user_id else None,
                     message=str(message),
                     created_time=created_time,
-                    parent_id=comment_id
+                    parent_id=comment_id,
+                    original_text=str(message),
+                    raw_source_text=str(message),
+                    is_translation=False,
+                    original_field_used="message",
+                    is_reply=True
                 ))
             return replies
         except Exception:

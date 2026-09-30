@@ -30,8 +30,11 @@ from flask import (
 )
 from flask_cors import CORS
 
-# Ensure root directory is on sys.path
-root_dir = Path(__file__).resolve().parent.parent
+# Ensure root directory and web directory are on sys.path
+web_dir = Path(__file__).resolve().parent
+root_dir = web_dir.parent
+if str(web_dir) not in sys.path:
+    sys.path.insert(0, str(web_dir))
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
@@ -138,13 +141,61 @@ class MetaGraphApiCollector:
                         index=count,
                         comment_id=str(c.comment_id),
                         user_name=c.user_name or "Facebook User",
-                        message=c.message or "",
+                        message=c.original_text or c.message or "",
                         created_time=created_str,
                         timestamp_raw=timestamp_raw,
                         avatar_color=color,
-                        avatar_initials=initials
+                        avatar_initials=initials,
+                        original_text=c.original_text or c.message or "",
+                        translated_text="",
+                        is_translation=False,
+                        original_field_used=c.original_field_used or "message",
+                        raw_source_text=c.raw_source_text or c.message or "",
+                        is_reply=bool(c.parent_id),
+                        parent_id=str(c.parent_id) if c.parent_id else None
                     )
                     self.on_comment(web_comment)
+
+                    # Also retrieve nested replies for top-level comments so count matches Facebook
+                    if not c.parent_id:
+                        try:
+                            replies = client.get_comment_replies(str(c.comment_id), limit=100)
+                            for reply in replies:
+                                if self.is_cancelled:
+                                    break
+                                count += 1
+                                r_parts = [p for p in (reply.user_name or "").split() if p]
+                                if len(r_parts) >= 2:
+                                    r_initials = (r_parts[0][0] + r_parts[1][0]).upper()
+                                elif len(r_parts) == 1:
+                                    r_initials = r_parts[0][:2].upper()
+                                else:
+                                    r_initials = "FB"
+                                r_color = palette[sum(ord(ch) for ch in (reply.user_name or "FB")) % len(palette)]
+                                r_created = reply.created_time.strftime("%Y-%m-%d %H:%M:%S") if hasattr(reply.created_time, "strftime") else str(reply.created_time or "")
+                                r_raw = reply.created_time.timestamp() if hasattr(reply.created_time, "timestamp") else time.time()
+
+                                reply_web_comment = WebComment(
+                                    index=count,
+                                    comment_id=str(reply.comment_id),
+                                    user_name=reply.user_name or "Facebook User",
+                                    message=reply.original_text or reply.message or "",
+                                    created_time=r_created,
+                                    timestamp_raw=r_raw,
+                                    avatar_color=r_color,
+                                    avatar_initials=r_initials,
+                                    original_text=reply.original_text or reply.message or "",
+                                    translated_text="",
+                                    is_translation=False,
+                                    original_field_used=reply.original_field_used or "message",
+                                    raw_source_text=reply.raw_source_text or reply.message or "",
+                                    is_reply=True,
+                                    parent_id=str(c.comment_id)
+                                )
+                                self.on_comment(reply_web_comment)
+                        except Exception:
+                            # If fetching replies fails for a specific comment, continue
+                            pass
 
                 if not next_url and not after_cursor:
                     break
@@ -233,7 +284,7 @@ class PublicPostCommentCollector:
             run_url = f"https://api.apify.com/v2/acts/apify~facebook-comments-scraper/runs?token={self.api_token}"
             payload = {
                 "startUrls": [{"url": clean_url}],
-                "resultsLimit": min(max_comments, 500),
+                "resultsLimit": max_comments if max_comments and max_comments > 0 else 5000,
                 "includeNestedComments": True,
                 "viewOption": "RANKED_UNFILTERED"
             }
@@ -264,59 +315,120 @@ class PublicPostCommentCollector:
                 "#F59E0B", "#8B5CF6", "#06B6D4", "#14B8A6"
             ]
 
+            def process_item(item_obj: dict, parent_id_str: Optional[str] = None):
+                nonlocal count
+                if self.is_cancelled:
+                    return
+                if max_comments and max_comments > 0 and count >= max_comments:
+                    return
+
+                # Unique ID: commentId or id or fallback
+                c_id = str(item_obj.get("commentId") or item_obj.get("id") or item_obj.get("commentUrl") or "")
+                if not c_id:
+                    c_id = f"c_{count + 1}"
+
+                if c_id in seen_ids:
+                    return
+                seen_ids.add(c_id)
+                count += 1
+
+                user_name = item_obj.get("profileName") or (item_obj.get("author") or {}).get("name") or "Facebook User"
+
+                # Check for original text vs translated text fields in provider response
+                # (e.g. original_text, originalText, raw_text, text, message)
+                raw_text = item_obj.get("text") or item_obj.get("message") or ""
+                orig_candidate = (
+                    item_obj.get("original_text") or 
+                    item_obj.get("originalText") or 
+                    item_obj.get("raw_text") or 
+                    item_obj.get("rawText")
+                )
+                trans_candidate = (
+                    item_obj.get("translated_text") or 
+                    item_obj.get("translatedText") or 
+                    item_obj.get("translation")
+                )
+
+                if orig_candidate and str(orig_candidate).strip():
+                    original_text = str(orig_candidate).strip()
+                    original_field_used = "original_text" if "original_text" in item_obj else ("originalText" if "originalText" in item_obj else "raw_text")
+                    translated_text = (trans_candidate or raw_text) if (trans_candidate or raw_text) != original_text else ""
+                    is_translation = bool(translated_text and translated_text != original_text)
+                else:
+                    original_text = raw_text
+                    original_field_used = "text" if "text" in item_obj else ("message" if "message" in item_obj else "raw")
+                    translated_text = trans_candidate or ""
+                    is_translation = False
+
+                date_str = item_obj.get("date") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                parts = [p for p in user_name.split() if p]
+                if len(parts) >= 2:
+                    initials = (parts[0][0] + parts[1][0]).upper()
+                elif len(parts) == 1:
+                    initials = parts[0][:2].upper()
+                else:
+                    initials = "FB"
+                color = palette[sum(ord(ch) for ch in user_name) % len(palette)]
+
+                is_reply = bool(parent_id_str or (item_obj.get("threadingDepth", 0) > 0) or item_obj.get("parentId"))
+
+                web_comment = WebComment(
+                    index=count,
+                    comment_id=c_id,
+                    user_name=user_name,
+                    message=original_text,
+                    created_time=date_str,
+                    timestamp_raw=time.time(),
+                    avatar_color=color,
+                    avatar_initials=initials,
+                    original_text=original_text,
+                    translated_text=translated_text,
+                    is_translation=is_translation,
+                    original_field_used=original_field_used,
+                    raw_source_text=raw_text or original_text,
+                    is_reply=is_reply,
+                    parent_id=parent_id_str or item_obj.get("parentId")
+                )
+                self.on_comment(web_comment)
+
+                # Process any nested comments / replies returned inside this item
+                nested = item_obj.get("comments") or item_obj.get("replies") or []
+                if isinstance(nested, list):
+                    for child in nested:
+                        if isinstance(child, dict):
+                            process_item(child, parent_id_str=c_id)
+
             while not self.is_cancelled:
-                items_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={self.api_token}&offset={offset}&limit=50"
+                items_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={self.api_token}&offset={offset}&limit=100"
                 i_resp = requests.get(items_url, timeout=10)
+                items_fetched = 0
                 if i_resp.status_code == 200:
                     items = i_resp.json()
+                    items_fetched = len(items)
                     for item in items:
                         if self.is_cancelled:
                             break
-                        c_id = str(item.get("id") or item.get("commentUrl") or f"c_{count + 1}")
-                        if c_id in seen_ids:
-                            continue
-                        seen_ids.add(c_id)
-                        count += 1
-
-                        user_name = item.get("profileName") or (item.get("author") or {}).get("name") or "Facebook User"
-                        message = item.get("text") or item.get("message") or ""
-                        date_str = item.get("date") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-                        parts = [p for p in user_name.split() if p]
-                        if len(parts) >= 2:
-                            initials = (parts[0][0] + parts[1][0]).upper()
-                        elif len(parts) == 1:
-                            initials = parts[0][:2].upper()
-                        else:
-                            initials = "FB"
-                        color = palette[sum(ord(ch) for ch in user_name) % len(palette)]
-
-                        web_comment = WebComment(
-                            index=count,
-                            comment_id=c_id,
-                            user_name=user_name,
-                            message=message,
-                            created_time=date_str,
-                            timestamp_raw=time.time(),
-                            avatar_color=color,
-                            avatar_initials=initials
-                        )
-                        self.on_comment(web_comment)
-
-                    offset += len(items)
+                        process_item(item)
+                    offset += items_fetched
 
                 # Check if actor run has finished
                 run_status_url = f"https://api.apify.com/v2/actor-runs/{self.current_run_id}?token={self.api_token}"
                 rs_resp = requests.get(run_status_url, timeout=10)
+                is_finished = False
                 if rs_resp.status_code == 200:
                     r_status = rs_resp.json().get("data", {}).get("status")
                     if r_status in ("SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"):
-                        break
+                        is_finished = True
 
-                if count >= max_comments:
+                if (max_comments and max_comments > 0 and count >= max_comments) or self.is_cancelled:
                     break
 
-                time.sleep(2.5)
+                # If actor finished AND we fetched 0 new items on this iteration, dataset is fully drained
+                if is_finished and items_fetched == 0:
+                    break
+
+                time.sleep(2.0)
 
             if self.is_cancelled:
                 self.on_status("CANCELLED", {"message": f"Collection stopped by user. {count} comments absorbed."})
@@ -396,6 +508,9 @@ class CollectionSession:
         with self.lock:
             count = len(self.comments)
             unique = len(self.unique_authors)
+            top_level = sum(1 for c in self.comments if not getattr(c, "is_reply", False))
+            replies = sum(1 for c in self.comments if getattr(c, "is_reply", False))
+            translations_reverted = sum(1 for c in self.comments if getattr(c, "is_translation", False))
             elapsed = 0.0
             cps = 0.0
             if self.start_time:
@@ -404,6 +519,9 @@ class CollectionSession:
 
             return {
                 "count": count,
+                "top_level_count": top_level,
+                "replies_count": replies,
+                "translations_reverted": translations_reverted,
                 "unique_authors": unique,
                 "elapsed_seconds": round(elapsed, 1),
                 "comments_per_sec": cps,
@@ -1070,7 +1188,8 @@ def api_export_csv():
     lines = ['"User","Comment","Date"']
     for c in sorted_comments:
         u = sanitize_for_excel(c.user_name).replace('"', '""')
-        m = sanitize_for_excel(c.message).replace('"', '""')
+        comment_text = getattr(c, "original_text", None) or c.message or ""
+        m = sanitize_for_excel(comment_text).replace('"', '""')
         d = sanitize_for_excel(c.created_time)
         lines.append(f'"{u}","{m}","{d}"')
 

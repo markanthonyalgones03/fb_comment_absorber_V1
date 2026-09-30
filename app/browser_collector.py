@@ -60,7 +60,13 @@ class BrowserCommentCollector:
             
             # Suppress logging
             options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
-            options.add_experimental_option("useAutomationExtension", False)
+            options.add_argument("--disable-features=Translate")
+            options.add_argument("--disable-translate")
+            prefs = {
+                "translate.enabled": False,
+                "translate_whitelists": {},
+            }
+            options.add_experimental_option("prefs", prefs)
 
             driver = webdriver.Chrome(options=options)
             return driver
@@ -74,6 +80,13 @@ class BrowserCommentCollector:
                 edge_options.add_argument("--disable-notifications")
                 edge_options.add_argument("--mute-audio")
                 edge_options.add_argument("--disable-blink-features=AutomationControlled")
+                edge_options.add_argument("--disable-features=Translate")
+                edge_options.add_argument("--disable-translate")
+                edge_prefs = {
+                    "translate.enabled": False,
+                    "translate_whitelists": {},
+                }
+                edge_options.add_experimental_option("prefs", edge_prefs)
                 driver = webdriver.Edge(options=edge_options)
                 return driver
             except Exception as edge_err:
@@ -248,8 +261,8 @@ class BrowserCommentCollector:
                 # Extract currently loaded comments
                 current_comments = self._extract_comments_from_dom(driver)
                 for c in current_comments:
-                    # Key by author + message to avoid duplicates
-                    key = f"{c.user_name}||{c.message}"
+                    # Key by unique comment ID when available so different users with identical text are preserved
+                    key = str(c.comment_id) if (c.comment_id and not str(c.comment_id).startswith("dom_")) else f"{c.user_name}||{c.comment_id}||{c.message}"
                     if key not in collected_dict:
                         collected_dict[key] = c
 
@@ -387,18 +400,19 @@ class BrowserCommentCollector:
             pass
 
     def _click_view_more_comments(self, driver: webdriver.Chrome) -> bool:
-        """Looks for buttons that expand earlier/more comments or replies and clicks them."""
+        """Looks for buttons that expand earlier/more comments, replies, and reverts translations to original text."""
         clicked_any = False
         keywords = [
             "View more comments", "View previous comments", "View 10 more comments",
             "View 20 more comments", "See more comments", "more comments",
             "Tingnan ang higit pang mga komento", "Tingnan ang iba pang mga komento",
             "View replies", "View 1 reply", "View reply", "replies", "mga tugon",
-            "View 2 replies", "View 3 replies", "View 4 replies", "View 5 replies"
+            "View 2 replies", "View 3 replies", "View 4 replies", "View 5 replies",
+            "See original", "Tingnan ang orihinal", "Tan-awa ang orihinal", "Ver original"
         ]
         xpath_query = (
             " | ".join([f"//span[contains(text(), '{k}')]" for k in keywords])
-            + " | //div[@role='button']//span[contains(text(), 'repl') or contains(text(), 'Repl') or contains(text(), 'tugon')]"
+            + " | //div[@role='button']//span[contains(text(), 'repl') or contains(text(), 'Repl') or contains(text(), 'tugon') or contains(text(), 'original') or contains(text(), 'orihinal')]"
         )
         try:
             elements = driver.find_elements(By.XPATH, xpath_query)
@@ -407,7 +421,7 @@ class BrowserCommentCollector:
                     driver.execute_script("arguments[0].scrollIntoView(false);", el)
                     driver.execute_script("arguments[0].click();", el)
                     clicked_any = True
-                    time.sleep(0.5)
+                    time.sleep(0.4)
                 except Exception:
                     pass
         except Exception:
@@ -427,7 +441,22 @@ class BrowserCommentCollector:
             pass
 
     def _extract_comments_from_dom(self, driver: webdriver.Chrome) -> List[Comment]:
-        """Extracts comment objects from the current DOM state."""
+        """Extracts comment objects from the current DOM state, ensuring original comment text is preserved."""
+        # Revert any Facebook machine translations by clicking all "See original" buttons
+        try:
+            driver.execute_script("""
+                const regex = /^(see original|tingnan ang orihinal|tan-awa ang orihinal|ver original|voir l'original)/i;
+                const buttons = Array.from(document.querySelectorAll('div[role="button"], span[role="button"], a[role="button"]'));
+                for (const b of buttons) {
+                    const text = (b.textContent || '').trim();
+                    if (regex.test(text)) {
+                        b.click();
+                    }
+                }
+            """)
+        except Exception:
+            pass
+
         comments = []
         now = datetime.now()
         ignore_author_strings = {
@@ -600,12 +629,33 @@ class BrowserCommentCollector:
                                 timestamp = parsed_dt
                                 break
 
-                cid = f"web_{author}_{hash(message)}"
+                # Extract real comment ID from link if present
+                real_cid = None
+                for l in links:
+                    href = l.get_attribute("href") or ""
+                    m_cid = re.search(r"[?&](?:comment_id|reply_comment_id)=(\d+)", href)
+                    if m_cid:
+                        real_cid = m_cid.group(1)
+                        break
+                    m_cid2 = re.search(r"/comments/(\d+)", href)
+                    if m_cid2:
+                        real_cid = m_cid2.group(1)
+                        break
+
+                cid = real_cid if real_cid else f"dom_{author}_{len(comments) + 1}_{abs(hash(message)) % 1000000}"
+                is_reply = bool("reply" in aria_lbl.lower() or el.find_elements(By.XPATH, "./ancestor::ul"))
+
                 comments.append(Comment(
                     comment_id=cid,
                     user_name=author,
                     message=message,
-                    created_time=timestamp
+                    created_time=timestamp,
+                    original_text=message,
+                    translated_text="",
+                    is_translation=False,
+                    original_field_used="dom_original",
+                    raw_source_text=message,
+                    is_reply=is_reply
                 ))
             except Exception:
                 continue
