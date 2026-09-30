@@ -322,8 +322,35 @@ class PublicPostCommentCollector:
                 if max_comments and max_comments > 0 and count >= max_comments:
                     return
 
-                # Unique ID: commentId or id or fallback
+                # Check for comment content and identifiers
+                raw_text = (
+                    item_obj.get("text") or 
+                    item_obj.get("message") or 
+                    item_obj.get("content") or 
+                    item_obj.get("comment") or 
+                    item_obj.get("body") or ""
+                )
+                orig_candidate = (
+                    item_obj.get("original_text") or 
+                    item_obj.get("originalText") or 
+                    item_obj.get("raw_text") or 
+                    item_obj.get("rawText") or
+                    item_obj.get("untranslated_text") or
+                    item_obj.get("original_message")
+                )
+                trans_candidate = (
+                    item_obj.get("translated_text") or 
+                    item_obj.get("translatedText") or 
+                    item_obj.get("translation") or
+                    item_obj.get("translated_message")
+                )
+
                 c_id = str(item_obj.get("commentId") or item_obj.get("id") or item_obj.get("commentUrl") or "")
+                
+                # If this item has neither an ID nor any text, it is scraper metadata/empty status
+                if not c_id and not raw_text and not orig_candidate:
+                    return
+
                 if not c_id:
                     c_id = f"c_{count + 1}"
 
@@ -332,21 +359,14 @@ class PublicPostCommentCollector:
                 seen_ids.add(c_id)
                 count += 1
 
-                user_name = item_obj.get("profileName") or (item_obj.get("author") or {}).get("name") or "Facebook User"
-
-                # Check for original text vs translated text fields in provider response
-                # (e.g. original_text, originalText, raw_text, text, message)
-                raw_text = item_obj.get("text") or item_obj.get("message") or ""
-                orig_candidate = (
-                    item_obj.get("original_text") or 
-                    item_obj.get("originalText") or 
-                    item_obj.get("raw_text") or 
-                    item_obj.get("rawText")
-                )
-                trans_candidate = (
-                    item_obj.get("translated_text") or 
-                    item_obj.get("translatedText") or 
-                    item_obj.get("translation")
+                author_obj = item_obj.get("author") or {}
+                user_name = (
+                    item_obj.get("profileName") or 
+                    item_obj.get("userName") or 
+                    (author_obj.get("name") if isinstance(author_obj, dict) else None) or 
+                    item_obj.get("commenter") or 
+                    item_obj.get("name") or 
+                    "Facebook User"
                 )
 
                 if orig_candidate and str(orig_candidate).strip():
