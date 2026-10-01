@@ -1855,7 +1855,7 @@ html, body {
       <div class="metric-card">
         <div class="metric-label">INGESTION SPEED</div>
         <div class="metric-value speed-color" id="kpi-speed">0.0 <span class="metric-unit">/sec</span></div>
-        <div class="metric-desc">Real-time throughput</div>
+        <div class="metric-desc">Duration: <span id="kpi-time" style="font-weight: 600; color: var(--text-primary);">00:00</span></div>
       </div>
 
       <div class="metric-card">
@@ -2275,7 +2275,7 @@ html, body {
     if (!stats) return;
     state.lastStats = stats;
     const count = Number(stats.count || 0);
-    el.kpiTotal.textContent = count.toLocaleString();
+    if (el.kpiTotal) el.kpiTotal.textContent = count.toLocaleString();
 
     if (el.kpiBreakdown) {
       const topLevel = Number(stats.top_level_count !== undefined ? stats.top_level_count : count).toLocaleString();
@@ -2286,7 +2286,7 @@ html, body {
     if (el.kpiSourceReported) {
       if (stats.source_reported_count && Number(stats.source_reported_count) > 0) {
         el.kpiSourceReported.textContent = Number(stats.source_reported_count).toLocaleString();
-        if (el.kpiSourceDesc) el.kpiSourceDesc.textContent = 'Facebook reported count';
+        if (el.kpiSourceDesc) el.kpiSourceDesc.textContent = 'Reported by Meta/source';
       } else {
         el.kpiSourceReported.textContent = '—';
         if (el.kpiSourceDesc) el.kpiSourceDesc.textContent = 'Pending / Unreported';
@@ -2308,7 +2308,7 @@ html, body {
         el.kpiCoverageStatus.textContent = 'STREAMING';
         el.kpiCoverageStatus.style.color = '#06b6d4';
         if (el.kpiCoverageDesc) el.kpiCoverageDesc.textContent = 'Ingesting comments...';
-      } else if (stats.status === 'ERROR') {
+      } else if (stats.status === 'ERROR' || stats.status === 'FAILED') {
         el.kpiCoverageStatus.textContent = 'FAILED';
         el.kpiCoverageStatus.style.color = '#ef4444';
         if (el.kpiCoverageDesc) el.kpiCoverageDesc.textContent = 'Collection failed';
@@ -2319,10 +2319,10 @@ html, body {
       }
     }
 
-    el.kpiSpeed.innerHTML = `${stats.comments_per_sec || 0} <span class="metric-unit">/sec</span>`;
-    el.kpiTime.textContent = formatDuration(stats.elapsed_seconds || 0);
-    el.kpiUnique.textContent = Number(stats.unique_authors || 0).toLocaleString();
-    el.feedCounter.textContent = count.toLocaleString();
+    if (el.kpiSpeed) el.kpiSpeed.innerHTML = `${stats.comments_per_sec || 0} <span class="metric-unit">/sec</span>`;
+    if (el.kpiTime) el.kpiTime.textContent = formatDuration(stats.elapsed_seconds || 0);
+    if (el.kpiUnique) el.kpiUnique.textContent = Number(stats.unique_authors || 0).toLocaleString();
+    if (el.feedCounter) el.feedCounter.textContent = count.toLocaleString();
 
     const hasComments = count > 0;
     if (el.btnExportExcel) el.btnExportExcel.disabled = !hasComments;
@@ -2454,15 +2454,19 @@ html, body {
     }
 
     if (filtered.length === 0) {
-      el.streamEmpty.style.display = 'block';
-      el.streamList.innerHTML = '';
-      if (query && state.comments.length > 0) {
-        el.streamEmpty.querySelector('.empty-title').textContent = 'No matching comments found';
-        el.streamEmpty.querySelector('.empty-desc').textContent = `No comments match "${query}".`;
-      } else {
-        el.streamEmpty.querySelector('.empty-title').textContent = 'No comments collected yet';
-        el.streamEmpty.querySelector('.empty-desc').textContent = 'Paste your Facebook URL above and click Start Collecting Real Comments.';
+      if (el.streamEmpty) {
+        el.streamEmpty.style.display = 'block';
+        const titleEl = el.streamEmpty.querySelector('.empty-title');
+        const descEl = el.streamEmpty.querySelector('.empty-desc');
+        if (query && state.comments.length > 0) {
+          if (titleEl) titleEl.textContent = 'No matching comments found';
+          if (descEl) descEl.textContent = `No comments match "${query}".`;
+        } else {
+          if (titleEl) titleEl.textContent = 'No comments collected yet';
+          if (descEl) descEl.innerHTML = 'Paste your Facebook URL above and click <strong>Start Collecting Real Comments</strong>.';
+        }
       }
+      if (el.streamList) el.streamList.innerHTML = '';
       return;
     }
 
