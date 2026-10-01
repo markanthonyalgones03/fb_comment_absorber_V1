@@ -2568,6 +2568,9 @@ html, body {
       el.btnStop.disabled = true;
       stopActivePolling();
       showToast(message || 'An error occurred.', 'error');
+      if (message && message.includes('Login with Facebook') && el.loginRequiredBanner) {
+        el.loginRequiredBanner.style.display = 'flex';
+      }
     } else {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-ready';

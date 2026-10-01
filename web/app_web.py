@@ -340,18 +340,50 @@ class PublicPostCommentCollector:
 
             # Start Apify Actor run
             run_url = f"https://api.apify.com/v2/acts/apify~facebook-comments-scraper/runs?token={self.api_token}"
-            payload = {
-                "startUrls": [{"url": clean_url}],
-                "resultsLimit": max_comments if (max_comments and max_comments > 0) else 100000,
-                "includeNestedComments": True,
-                "viewOption": "RANKED_UNFILTERED"
-            }
-            resp = requests.post(run_url, json=payload, timeout=15)
-            if resp.status_code >= 400:
-                if resp.status_code == 401:
-                    self.on_status("ERROR", {"message": "Invalid APIFY_API_TOKEN. Please verify your token in cloud environment settings."})
+            
+            # Apify credit check: Start with requested limit, fallback to 5000 or 1000 if credit check triggers 402
+            target_limit = max_comments if (max_comments and max_comments > 0) else 5000
+            candidate_limits = [target_limit]
+            if target_limit > 5000:
+                candidate_limits.append(5000)
+            if 1000 not in candidate_limits:
+                candidate_limits.append(1000)
+
+            resp = None
+            for limit_attempt in candidate_limits:
+                payload = {
+                    "startUrls": [{"url": clean_url}],
+                    "resultsLimit": limit_attempt,
+                    "includeNestedComments": True,
+                    "viewOption": "RANKED_UNFILTERED"
+                }
+                resp = requests.post(run_url, json=payload, timeout=15)
+                if resp.status_code in (200, 201):
+                    break
+                elif resp.status_code == 402:
+                    continue
                 else:
-                    self.on_status("ERROR", {"message": f"Public post engine error: HTTP {resp.status_code}"})
+                    break
+
+            if resp is None or resp.status_code >= 400:
+                err_detail = ""
+                try:
+                    err_json = resp.json()
+                    err_detail = err_json.get("error", {}).get("message") or err_json.get("message") or ""
+                except Exception:
+                    err_detail = resp.text[:200] if resp else ""
+
+                if resp and resp.status_code == 401:
+                    self.on_status("ERROR", {"message": "Invalid APIFY_API_TOKEN. Please verify your token in cloud environment settings."})
+                elif resp and resp.status_code == 402:
+                    msg = "Apify monthly usage/credit limit exhausted on cloud account (HTTP 402)."
+                    if err_detail:
+                        msg += f" {err_detail}."
+                    msg += " Tip: Click 'Login with Facebook' to absorb comments via official Meta Graph API (100% free with no credit limits)."
+                    self.on_status("ERROR", {"message": msg})
+                else:
+                    sc = resp.status_code if resp else "unknown"
+                    self.on_status("ERROR", {"message": f"Public post engine error: HTTP {sc} {err_detail}".strip()})
                 return
 
             run_data = resp.json().get("data", {})
