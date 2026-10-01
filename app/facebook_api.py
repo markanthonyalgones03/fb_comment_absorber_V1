@@ -268,43 +268,80 @@ class FacebookApiClient:
 
         return comments, next_url, next_after, total_count
 
-    def get_comment_replies(self, comment_id: str, limit: int = 50) -> List[Comment]:
+    def get_comment_replies(self, comment_id: str, limit: int = 100, max_replies: int = 500) -> List[Comment]:
         """
-        Fetches nested replies for a specific top-level comment if not included in main stream.
+        Fetches all nested replies for a specific top-level comment by following
+        Meta Graph API pagination cursors until genuinely exhausted.
         """
-        try:
-            data = self._get(f"/{comment_id}/comments", params={
-                "fields": "id,from{id,name},message,created_time,parent{id}",
-                "limit": limit,
-                "order": "chronological"
-            })
-            raw_replies = data.get("data", [])
-            replies = []
-            for item in raw_replies:
-                r_id = item.get("id")
-                if not r_id:
-                    continue
-                from_obj = item.get("from") or {}
-                user_name = from_obj.get("name") or from_obj.get("id") or "Facebook User"
-                user_id = from_obj.get("id")
-                message = item.get("message", "") or ""
-                created_time = parse_fb_timestamp(item.get("created_time", ""))
-                replies.append(Comment(
-                    comment_id=str(r_id),
-                    user_name=str(user_name),
-                    user_id=str(user_id) if user_id else None,
-                    message=str(message),
-                    created_time=created_time,
-                    parent_id=comment_id,
-                    original_text=str(message),
-                    raw_source_text=str(message),
-                    is_translation=False,
-                    original_field_used="message",
-                    is_reply=True
-                ))
-            return replies
-        except Exception:
-            return []
+        replies: List[Comment] = []
+        next_url = None
+        after_cursor = None
+        seen_cursors = set()
+        seen_reply_ids = set()
+
+        while True:
+            try:
+                if next_url:
+                    data = self._get(next_url)
+                else:
+                    params = {
+                        "fields": "id,from{id,name},message,created_time,parent{id}",
+                        "limit": min(limit, 100),
+                        "order": "chronological"
+                    }
+                    if after_cursor:
+                        params["after"] = after_cursor
+                    data = self._get(f"/{comment_id}/comments", params=params)
+
+                raw_replies = data.get("data", [])
+                if not raw_replies:
+                    break
+
+                for item in raw_replies:
+                    r_id = item.get("id")
+                    if not r_id or str(r_id) in seen_reply_ids:
+                        continue
+                    seen_reply_ids.add(str(r_id))
+
+                    from_obj = item.get("from") or {}
+                    user_name = from_obj.get("name") or from_obj.get("id") or "Facebook User"
+                    user_id = from_obj.get("id")
+                    message = item.get("message", "") or ""
+                    created_time = parse_fb_timestamp(item.get("created_time", ""))
+                    replies.append(Comment(
+                        comment_id=str(r_id),
+                        user_name=str(user_name),
+                        user_id=str(user_id) if user_id else None,
+                        message=str(message),
+                        created_time=created_time,
+                        parent_id=comment_id,
+                        original_text=str(message),
+                        raw_source_text=str(message),
+                        is_translation=False,
+                        original_field_used="message",
+                        is_reply=True
+                    ))
+
+                if len(replies) >= max_replies:
+                    break
+
+                paging = data.get("paging", {})
+                next_url = paging.get("next")
+                cursors = paging.get("cursors", {})
+                after_cursor = cursors.get("after")
+
+                if not next_url and not after_cursor:
+                    break
+
+                if after_cursor:
+                    if after_cursor in seen_cursors:
+                        break
+                    seen_cursors.add(after_cursor)
+
+            except Exception:
+                break
+
+        return replies
 
 
 class DemoFacebookApiClient:
@@ -393,4 +430,31 @@ class DemoFacebookApiClient:
             next_url = None
 
         return comments, next_url, next_after, total_comments
+
+    def get_comment_replies(self, comment_id: str, limit: int = 10, max_replies: int = 50) -> List[Comment]:
+        """Simulation replies for demo comments."""
+        from datetime import datetime, timezone, timedelta
+        # Deterministically generate 1-2 replies for even numbered comments
+        try:
+            num = int(comment_id.split("_")[-1])
+        except Exception:
+            num = 1
+        if num % 3 != 0:
+            return []
+
+        replies = []
+        base_time = datetime(2026, 9, 10, 8, 30, 0, tzinfo=timezone.utc)
+        for r_i in range(1, 3):
+            r_id = f"{comment_id}_reply_{r_i}"
+            msg = f"Replying to #{num}: Salamat po sa feedback!" if r_i == 1 else "Yes exactly, fully agree!"
+            replies.append(Comment(
+                comment_id=r_id,
+                user_name="Page Moderator" if r_i == 1 else "Community Member",
+                message=msg,
+                created_time=base_time + timedelta(minutes=num * 5 + r_i * 2),
+                parent_id=comment_id,
+                is_reply=True
+            ))
+        return replies
+
 

@@ -80,6 +80,7 @@ class CommentCollector:
         self.collected_comments = []
         self.seen_comment_ids = set()
         exhausted_pagination = True
+        source_reported_total = None
 
         try:
             # 1. Direct Browser Extraction Mode
@@ -106,6 +107,8 @@ class CommentCollector:
                 after_cursor = None
                 page_index = 0
                 exhausted_pagination = False
+                source_reported_total = None
+                seen_cursors = set()
 
                 while not self._cancel_flag.is_set():
                     page_index += 1
@@ -116,6 +119,8 @@ class CommentCollector:
                             next_page_url=next_url,
                             limit=100
                         )
+                        if reported_total and reported_total > 0 and source_reported_total is None:
+                            source_reported_total = reported_total
                     except Exception as api_err:
                         if self.collected_comments:
                             return self._handle_partial_collection(
@@ -128,6 +133,17 @@ class CommentCollector:
                         if c.comment_id not in self.seen_comment_ids:
                             self.seen_comment_ids.add(c.comment_id)
                             self.collected_comments.append(c)
+
+                        # Retrieve nested replies for top-level comments where supported
+                        if self.fetch_nested_replies and not c.parent_id and hasattr(self.api_client, "get_comment_replies"):
+                            try:
+                                nested = self.api_client.get_comment_replies(str(c.comment_id), limit=100)
+                                for r in nested:
+                                    if r.comment_id not in self.seen_comment_ids:
+                                        self.seen_comment_ids.add(r.comment_id)
+                                        self.collected_comments.append(r)
+                            except Exception:
+                                pass
 
                     current_count = len(self.collected_comments)
                     self._notify(
@@ -144,6 +160,12 @@ class CommentCollector:
                         exhausted_pagination = True
                         break
 
+                    if after_cursor:
+                        if after_cursor in seen_cursors:
+                            exhausted_pagination = True
+                            break
+                        seen_cursors.add(after_cursor)
+
                     if self.page_delay_seconds > 0:
                         time.sleep(self.page_delay_seconds)
             else:
@@ -159,12 +181,13 @@ class CommentCollector:
                 current_count = len(self.collected_comments)
                 excel_file = None
                 if current_count > 0:
-                    # Allow exporting partial collected comments
                     sorted_comments = sort_comments_oldest_first(self.collected_comments)
                     excel_file = self.exporter.export(sorted_comments, custom_export_path, author_name=post_author)
 
                 msg = f"Collection stopped by user. {current_count:,} comments were collected before cancellation."
                 self._notify(CollectionStatus.CANCELLED, count=current_count, message=msg)
+                top_level = sum(1 for c in self.collected_comments if not getattr(c, "is_reply", False))
+                replies = sum(1 for c in self.collected_comments if getattr(c, "is_reply", False))
                 return CollectionResult(
                     success=True,
                     status=CollectionStatus.CANCELLED,
@@ -174,7 +197,10 @@ class CommentCollector:
                     message=msg,
                     is_cancelled=True,
                     is_partial=True,
-                    post_author=post_author
+                    post_author=post_author,
+                    source_reported_count=source_reported_total,
+                    top_level_count=top_level,
+                    replies_count=replies
                 )
 
             # 4. Check for 0 comments
@@ -198,7 +224,15 @@ class CommentCollector:
             excel_path = self.exporter.export(sorted_comments, custom_export_path, author_name=post_author)
 
             total_collected = len(sorted_comments)
-            final_msg = f"Completed — {total_collected:,} comments collected."
+            top_level = sum(1 for c in sorted_comments if not getattr(c, "is_reply", False))
+            replies = sum(1 for c in sorted_comments if getattr(c, "is_reply", False))
+            is_partial = bool((source_reported_total and total_collected < source_reported_total) or not exhausted_pagination)
+
+            if source_reported_total:
+                final_msg = f"Retrieved {total_collected:,} of {source_reported_total:,} source-reported comments."
+            else:
+                final_msg = f"Retrieved {total_collected:,} comments from authorized data source."
+
             self._notify(
                 CollectionStatus.COMPLETED,
                 count=total_collected,
@@ -213,8 +247,11 @@ class CommentCollector:
                 file_path=str(excel_path),
                 message=final_msg,
                 is_cancelled=False,
-                is_partial=not exhausted_pagination,
-                post_author=post_author
+                is_partial=is_partial,
+                post_author=post_author,
+                source_reported_count=source_reported_total,
+                top_level_count=top_level,
+                replies_count=replies
             )
 
         except AppError as err:

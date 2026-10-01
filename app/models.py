@@ -88,6 +88,10 @@ class CollectionResult:
     is_cancelled: bool = False
     is_partial: bool = False
     post_author: Optional[str] = None
+    source_reported_count: Optional[int] = None
+    top_level_count: int = 0
+    replies_count: int = 0
+
 
 
 # Custom Application Exceptions for precise and user-friendly error handling

@@ -69,11 +69,23 @@ class MetaGraphApiCollector:
     Collects comments directly from official Meta Graph API v21.0.
     Communicates server-to-server with Facebook using the authenticated user's access token.
     """
-    def __init__(self, access_token: str, on_comment: Any, on_status: Any):
+    def __init__(
+        self,
+        access_token: str,
+        on_comment: Any,
+        on_status: Any,
+        on_source_count: Optional[Any] = None,
+        on_diagnostic: Optional[Any] = None,
+        on_exhausted: Optional[Any] = None
+    ):
         self.access_token = access_token
         self.on_comment = on_comment
         self.on_status = on_status
+        self.on_source_count = on_source_count
+        self.on_diagnostic = on_diagnostic
+        self.on_exhausted = on_exhausted
         self.is_cancelled = False
+        self.source_reported_count: Optional[int] = None
 
     def cancel(self):
         self.is_cancelled = True
@@ -103,6 +115,8 @@ class MetaGraphApiCollector:
             next_url = None
             after_cursor = None
             count = 0
+            page_index = 0
+            seen_cursors = set()
 
             palette = [
                 "#1877F2", "#10B981", "#6366F1", "#EC4899", 
@@ -110,6 +124,7 @@ class MetaGraphApiCollector:
             ]
 
             while not self.is_cancelled:
+                page_index += 1
                 comments, next_url, after_cursor, total_reported = client.get_comments_page(
                     post_id=post_id,
                     after_cursor=after_cursor,
@@ -117,7 +132,24 @@ class MetaGraphApiCollector:
                     limit=100
                 )
 
-                if not comments and count == 0:
+                if total_reported and total_reported > 0 and self.source_reported_count is None:
+                    self.source_reported_count = total_reported
+                    if self.on_source_count:
+                        self.on_source_count(total_reported)
+
+                if self.on_diagnostic:
+                    self.on_diagnostic({
+                        "request_index": page_index,
+                        "endpoint": f"/{post_id}/comments",
+                        "post_id": post_id,
+                        "comments_returned": len(comments),
+                        "next_exists": bool(next_url or after_cursor),
+                        "cursor": after_cursor or ("next_url" if next_url else "NONE")
+                    })
+
+                if not comments and count == 0 and page_index == 1:
+                    if self.on_exhausted:
+                        self.on_exhausted(True)
                     self.on_status("COMPLETED", {"message": "No comments found on this post (or comments are restricted)."})
                     return
 
@@ -198,16 +230,35 @@ class MetaGraphApiCollector:
                             pass
 
                 if not next_url and not after_cursor:
+                    if self.on_exhausted:
+                        self.on_exhausted(True)
                     break
                 if not comments:
+                    if self.on_exhausted:
+                        self.on_exhausted(True)
                     break
+
+                if after_cursor:
+                    if after_cursor in seen_cursors:
+                        if self.on_exhausted:
+                            self.on_exhausted(True)
+                        break
+                    seen_cursors.add(after_cursor)
 
                 time.sleep(0.1)
 
             if self.is_cancelled:
-                self.on_status("CANCELLED", {"message": f"Collection stopped by user. {count} comments absorbed."})
+                self.on_status("CANCELLED", {"message": f"Collection stopped by user. Retrieved {count} comments."})
             else:
-                self.on_status("COMPLETED", {"message": f"Successfully absorbed {count} comments via Meta Graph API."})
+                src_cnt = self.source_reported_count
+                if src_cnt and count < src_cnt:
+                    self.on_status("PARTIAL", {
+                        "message": f"Retrieved {count} of {src_cnt} source-reported comments."
+                    })
+                else:
+                    self.on_status("COMPLETED", {
+                        "message": f"Retrieved {count} comments from the authorized data source."
+                    })
 
         except PermissionDeniedError:
             self.on_status("ERROR", {
@@ -254,13 +305,20 @@ class PublicPostCommentCollector:
         self,
         api_token: str,
         on_comment: Any,
-        on_status: Any
+        on_status: Any,
+        on_source_count: Optional[Any] = None,
+        on_diagnostic: Optional[Any] = None,
+        on_exhausted: Optional[Any] = None
     ):
         self.api_token = api_token
         self.on_comment = on_comment
         self.on_status = on_status
+        self.on_source_count = on_source_count
+        self.on_diagnostic = on_diagnostic
+        self.on_exhausted = on_exhausted
         self.is_cancelled = False
         self.current_run_id = None
+        self.source_reported_count: Optional[int] = None
 
     def cancel(self):
         self.is_cancelled = True
@@ -272,7 +330,7 @@ class PublicPostCommentCollector:
             except Exception:
                 pass
 
-    def run(self, raw_url: str, max_comments: int = 150):
+    def run(self, raw_url: str, max_comments: int = 5000):
         try:
             import requests
             from app.utils import clean_facebook_url, resolve_canonical_facebook_url
@@ -309,6 +367,7 @@ class PublicPostCommentCollector:
             seen_ids = set()
             count = 0
             offset = 0
+            batch_num = 0
 
             palette = [
                 "#1877F2", "#10B981", "#6366F1", "#EC4899", 
@@ -321,6 +380,25 @@ class PublicPostCommentCollector:
                     return
                 if max_comments and max_comments > 0 and count >= max_comments:
                     return
+
+                # Check for source reported count in post summary fields
+                post_count_cand = (
+                    item_obj.get("postCommentsCount") or 
+                    item_obj.get("totalComments") or 
+                    item_obj.get("commentsCount") or 
+                    item_obj.get("post_total_comments") or 
+                    item_obj.get("total_comments")
+                )
+                if post_count_cand is not None:
+                    try:
+                        p_val = int(post_count_cand)
+                        if p_val > 0:
+                            if self.source_reported_count is None or p_val > self.source_reported_count:
+                                self.source_reported_count = p_val
+                                if self.on_source_count:
+                                    self.on_source_count(p_val)
+                    except (ValueError, TypeError):
+                        pass
 
                 # Check for comment content and identifiers
                 raw_text = (
@@ -354,6 +432,7 @@ class PublicPostCommentCollector:
                 if not c_id:
                     c_id = f"c_{count + 1}"
 
+                # Primary deduplication by comment_id ONLY — never by text
                 if c_id in seen_ids:
                     return
                 seen_ids.add(c_id)
@@ -369,6 +448,7 @@ class PublicPostCommentCollector:
                     "Facebook User"
                 )
 
+                # Preserve exact original comment text without machine translation
                 if orig_candidate and str(orig_candidate).strip():
                     original_text = str(orig_candidate).strip()
                     original_field_used = "original_text" if "original_text" in item_obj else ("originalText" if "originalText" in item_obj else "raw_text")
@@ -391,7 +471,24 @@ class PublicPostCommentCollector:
                     initials = "FB"
                 color = palette[sum(ord(ch) for ch in user_name) % len(palette)]
 
-                is_reply = bool(parent_id_str or (item_obj.get("threadingDepth", 0) > 0) or item_obj.get("parentId"))
+                # Reply identification: check all parent candidate keys and depth safely
+                parent_cand = (
+                    parent_id_str or 
+                    item_obj.get("parentCommentId") or 
+                    item_obj.get("parentId") or 
+                    item_obj.get("parent_id") or 
+                    item_obj.get("replyToCommentId") or 
+                    item_obj.get("replyTo") or
+                    (item_obj.get("parentComment", {}).get("id") if isinstance(item_obj.get("parentComment"), dict) else item_obj.get("parentComment"))
+                )
+                depth_raw = item_obj.get("threadingDepth", 0)
+                try:
+                    depth = int(depth_raw)
+                except (ValueError, TypeError):
+                    depth = 0
+
+                is_reply = bool(parent_cand or depth > 0)
+                parent_id = str(parent_cand) if parent_cand else None
 
                 web_comment = WebComment(
                     index=count,
@@ -408,7 +505,7 @@ class PublicPostCommentCollector:
                     original_field_used=original_field_used,
                     raw_source_text=raw_text or original_text,
                     is_reply=is_reply,
-                    parent_id=parent_id_str or item_obj.get("parentId")
+                    parent_id=parent_id
                 )
                 self.on_comment(web_comment)
 
@@ -420,6 +517,7 @@ class PublicPostCommentCollector:
                             process_item(child, parent_id_str=c_id)
 
             while not self.is_cancelled:
+                batch_num += 1
                 items_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={self.api_token}&offset={offset}&limit=100"
                 i_resp = requests.get(items_url, timeout=10)
                 items_fetched = 0
@@ -441,21 +539,44 @@ class PublicPostCommentCollector:
                     if r_status in ("SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"):
                         is_finished = True
 
+                if self.on_diagnostic:
+                    self.on_diagnostic({
+                        "request_index": batch_num,
+                        "endpoint": f"https://api.apify.com/v2/datasets/{dataset_id}/items",
+                        "post_id": clean_url,
+                        "comments_returned": items_fetched,
+                        "next_exists": (not is_finished) or items_fetched > 0,
+                        "cursor": f"offset={offset}"
+                    })
+
                 if (max_comments and max_comments > 0 and count >= max_comments) or self.is_cancelled:
                     break
 
                 # If actor finished AND we fetched 0 new items on this iteration, dataset is fully drained
                 if is_finished and items_fetched == 0:
+                    if self.on_exhausted:
+                        self.on_exhausted(True)
                     break
 
                 time.sleep(2.0)
 
+            if self.on_exhausted:
+                self.on_exhausted(True)
+
             if self.is_cancelled:
-                self.on_status("CANCELLED", {"message": f"Collection stopped by user. {count} comments absorbed."})
+                self.on_status("CANCELLED", {"message": f"Collection stopped by user. Retrieved {count} comments."})
             elif count == 0:
                 self.on_status("COMPLETED", {"message": "No comments found on this public post (or comments are restricted)."})
             else:
-                self.on_status("COMPLETED", {"message": f"Successfully absorbed {count} public comments."})
+                src_cnt = self.source_reported_count
+                if src_cnt and count < src_cnt:
+                    self.on_status("PARTIAL", {
+                        "message": f"Retrieved {count} of {src_cnt} source-reported comments."
+                    })
+                else:
+                    self.on_status("COMPLETED", {
+                        "message": f"Retrieved {count} comments from the authorized data source."
+                    })
 
         except Exception as e:
             self.on_status("ERROR", {"message": f"Public comment absorption failed: {str(e)}"})
@@ -480,6 +601,34 @@ class CollectionSession:
         self.event_queues: List[queue.Queue] = []
         self.mode = "api"
         self.post_url = ""
+        self.source_reported_count: Optional[int] = None
+        self.raw_comments_received: int = 0
+        self.duplicates_removed: int = 0
+        self.pages_processed: int = 0
+        self.pagination_exhausted: bool = False
+        self.diagnostic_logs: List[Dict[str, Any]] = []
+
+    def set_source_reported_count(self, count: int):
+        with self.lock:
+            if count and count > 0 and (self.source_reported_count is None or count > self.source_reported_count):
+                self.source_reported_count = count
+        self.broadcast("source_count", {
+            "source_reported_count": self.source_reported_count,
+            "stats": self.get_stats_dict()
+        })
+
+    def add_diagnostic_log(self, entry: Dict[str, Any]):
+        with self.lock:
+            self.diagnostic_logs.append(entry)
+            self.pages_processed += 1
+        self.broadcast("diagnostic", {
+            "entry": entry,
+            "stats": self.get_stats_dict()
+        })
+
+    def set_pagination_exhausted(self, exhausted: bool = True):
+        with self.lock:
+            self.pagination_exhausted = exhausted
 
     def add_event_queue(self) -> queue.Queue:
         q = queue.Queue(maxsize=500)
@@ -503,8 +652,13 @@ class CollectionSession:
 
     def on_new_comment(self, comment: WebComment):
         with self.lock:
-            self.comments.append(comment)
+            self.raw_comments_received += 1
+            # Primary deduplication by comment_id ONLY — never deduplicate by text
+            if comment.comment_id in self.seen_ids:
+                self.duplicates_removed += 1
+                return
             self.seen_ids.add(comment.comment_id)
+            self.comments.append(comment)
             self.unique_authors.add(comment.user_name)
             self.last_comment = comment
 
@@ -537,8 +691,17 @@ class CollectionSession:
                 elapsed = max(0.1, time.time() - self.start_time)
                 cps = round(count / elapsed, 1)
 
+            # Determine whether partial or complete
+            is_partial = False
+            if self.source_reported_count is not None and self.source_reported_count > 0:
+                is_partial = (count < self.source_reported_count)
+            elif not self.pagination_exhausted and self.status in ("COMPLETED", "PARTIAL"):
+                is_partial = True
+
             return {
                 "count": count,
+                "retrieved_count": count,
+                "source_reported_count": self.source_reported_count,
                 "top_level_count": top_level,
                 "replies_count": replies,
                 "translations_reverted": translations_reverted,
@@ -547,10 +710,24 @@ class CollectionSession:
                 "comments_per_sec": cps,
                 "status": self.status,
                 "message": self.message,
-                "latest_comment": self.last_comment.to_dict() if self.last_comment else None
+                "is_partial": is_partial,
+                "latest_comment": self.last_comment.to_dict() if self.last_comment else None,
+                "diagnostic_logs": list(self.diagnostic_logs[-30:]),
+                "diagnostics_summary": {
+                    "raw_comments_received": self.raw_comments_received,
+                    "unique_comment_ids": len(self.seen_ids),
+                    "top_level": top_level,
+                    "replies": replies,
+                    "duplicates_removed": self.duplicates_removed,
+                    "pages_processed": self.pages_processed,
+                    "pagination_exhausted": self.pagination_exhausted,
+                    "source_reported_count": self.source_reported_count,
+                    "retrieved_count": count,
+                    "status": self.status
+                }
             }
 
-    def start(self, url: str, mode: str = "api", user_token: Optional[str] = None, max_comments: int = 150, speed: float = 0.25):
+    def start(self, url: str, mode: str = "api", user_token: Optional[str] = None, max_comments: int = 5000, speed: float = 0.25, source_count: Optional[int] = None):
         with self.lock:
             if self.status in ("CONNECTING", "ACCESSING", "COLLECTING"):
                 return False, "Collection is already running."
@@ -564,6 +741,12 @@ class CollectionSession:
             self.start_time = time.time()
             self.mode = mode
             self.post_url = url
+            self.source_reported_count = source_count
+            self.raw_comments_received = 0
+            self.duplicates_removed = 0
+            self.pages_processed = 0
+            self.pagination_exhausted = False
+            self.diagnostic_logs = []
 
         self.broadcast("status", {
             "status": self.status,
@@ -590,7 +773,10 @@ class CollectionSession:
                     collector = PublicPostCommentCollector(
                         api_token=apify_token,
                         on_comment=self.on_new_comment,
-                        on_status=self.on_status_change
+                        on_status=self.on_status_change,
+                        on_source_count=self.set_source_reported_count,
+                        on_diagnostic=self.add_diagnostic_log,
+                        on_exhausted=self.set_pagination_exhausted
                     )
                     self.current_collector = collector
                     collector.run(url, max_comments=max_comments)
@@ -603,7 +789,10 @@ class CollectionSession:
                     collector = MetaGraphApiCollector(
                         access_token=user_token,
                         on_comment=self.on_new_comment,
-                        on_status=self.on_status_change
+                        on_status=self.on_status_change,
+                        on_source_count=self.set_source_reported_count,
+                        on_diagnostic=self.add_diagnostic_log,
+                        on_exhausted=self.set_pagination_exhausted
                     )
                     self.current_collector = collector
                     collector.run(url)
@@ -645,6 +834,12 @@ class CollectionSession:
             self.unique_authors.clear()
             self.last_comment = None
             self.start_time = None
+            self.source_reported_count = None
+            self.raw_comments_received = 0
+            self.duplicates_removed = 0
+            self.pages_processed = 0
+            self.pagination_exhausted = False
+            self.diagnostic_logs = []
             self.status = "IDLE"
             self.message = "Feed cleared. Paste your Facebook post URL to begin."
 
@@ -1045,8 +1240,16 @@ def api_start_collect():
     data = request.get_json(silent=True) or {}
     url = data.get("url", "").strip()
     mode = data.get("mode", "api")
-    max_comments = int(data.get("max_comments", 150))
+    max_comments = int(data.get("max_comments", 5000))
     speed = float(data.get("speed", 0.25))
+
+    source_count_raw = data.get("source_count")
+    source_count_int = None
+    if source_count_raw is not None and str(source_count_raw).strip():
+        try:
+            source_count_int = int(str(source_count_raw).strip())
+        except (ValueError, TypeError):
+            source_count_int = None
 
     if mode == "simulator":
         if not url:
@@ -1055,7 +1258,8 @@ def api_start_collect():
             url=url,
             mode="simulator",
             max_comments=max_comments,
-            speed=speed
+            speed=speed,
+            source_count=source_count_int
         )
         return jsonify({"success": ok, "status": "ok" if ok else "error", "message": msg, "clean_url": url})
 
@@ -1093,7 +1297,8 @@ def api_start_collect():
         mode=chosen_mode,
         user_token=token,
         max_comments=max_comments,
-        speed=speed
+        speed=speed,
+        source_count=source_count_int
     )
     if ok:
         return jsonify({"success": True, "status": "ok", "message": msg, "clean_url": url, "engine": chosen_mode})

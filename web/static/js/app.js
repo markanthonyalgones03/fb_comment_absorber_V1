@@ -779,8 +779,8 @@
     const interval = setInterval(() => {
       if (counter >= parsedList.length || !state.isCollecting) {
         clearInterval(interval);
-        updateStatusUI('COMPLETED', `Done! Absorbed ${parsedList.length} comments.`);
-        showToast(`Successfully absorbed ${parsedList.length} comments!`, 'success');
+        updateStatusUI('COMPLETED', `Retrieved ${parsedList.length} comments from the authorized data source.`);
+        showToast(`Retrieved ${parsedList.length} comments from the authorized data source.`, 'success');
         return;
       }
 

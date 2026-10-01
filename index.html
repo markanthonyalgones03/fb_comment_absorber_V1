@@ -270,10 +270,29 @@ html, body {
   background: var(--emerald);
 }
 
+.status-pill.status-partial {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+.status-pill.status-partial .status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+}
+
 .status-pill.status-stopped {
   background: rgba(239, 68, 68, 0.15);
   border-color: var(--red);
   color: #f87171;
+}
+
+.status-pill.status-error {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #ef4444;
+  color: #f87171;
+}
+.status-pill.status-error .status-dot {
+  background: #ef4444;
 }
 
 @keyframes pulseDot {
@@ -485,11 +504,21 @@ html, body {
   line-height: 1.4;
 }
 
-/* Metrics Row (4-Column Grid) */
+/* Metrics Row (5-Column Grid) */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
+}
+@media (max-width: 1100px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 680px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .metric-card {
@@ -521,6 +550,8 @@ html, body {
 
 .metric-value.speed-color { color: var(--cyan); }
 .metric-value.authors-color { color: #34d399; }
+.metric-value.source-color { color: #f59e0b; }
+.metric-value.status-val { font-size: 22px; color: var(--cyan); }
 
 .metric-unit {
   font-size: 14px;
@@ -531,6 +562,76 @@ html, body {
 .metric-desc {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Optional FB count input inside URL row */
+.source-count-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  height: 44px;
+  white-space: nowrap;
+}
+.source-count-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.source-count-input {
+  width: 75px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
+/* Developer Diagnostic Run Log Card */
+.dev-diag-card {
+  background: #090d16;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  margin-top: 12px;
+}
+.dev-diag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+.dev-diag-badge {
+  font-size: 13px;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.04em;
+}
+.dev-diag-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+.dev-diag-console {
+  background: #030712;
+  border: 1px solid #1e293b;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  color: #a5f3fc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 /* Main Dashboard Body Grid */
@@ -1713,6 +1814,10 @@ html, body {
           />
           <button type="button" id="clear-url-btn" class="btn-clear" title="Clear URL">&times;</button>
         </div>
+        <div class="source-count-wrap" title="Optional: Enter Facebook's visible comment count for accuracy verification">
+          <span class="source-count-label">FB Count:</span>
+          <input type="number" id="source-count-input" class="source-count-input" placeholder="e.g. 53" min="0" />
+        </div>
       </div>
 
       <!-- Action Buttons Row -->
@@ -1759,12 +1864,24 @@ html, body {
       </div>
     </section>
 
-    <!-- Metrics Row (4-Column Grid) -->
+    <!-- Metrics Row (5-Column Grid) -->
     <section class="metrics-grid">
       <div class="metric-card">
-        <div class="metric-label">TOTAL COMMENTS</div>
+        <div class="metric-label">RETRIEVED COMMENTS</div>
         <div class="metric-value" id="kpi-total">0</div>
         <div class="metric-desc" id="kpi-breakdown">Top-level: 0 · Replies: 0</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">SOURCE REPORTED</div>
+        <div class="metric-value source-color" id="kpi-source-reported">—</div>
+        <div class="metric-desc" id="kpi-source-desc">Facebook post count</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">COVERAGE STATUS</div>
+        <div class="metric-value status-val" id="kpi-coverage-status">READY</div>
+        <div class="metric-desc" id="kpi-coverage-desc">Authorized data source</div>
       </div>
 
       <div class="metric-card">
@@ -1774,16 +1891,24 @@ html, body {
       </div>
 
       <div class="metric-card">
-        <div class="metric-label">ELAPSED TIME</div>
-        <div class="metric-value" id="kpi-time">00:00</div>
-        <div class="metric-desc">Collection duration</div>
-      </div>
-
-      <div class="metric-card">
         <div class="metric-label">UNIQUE COMMENTERS</div>
         <div class="metric-value authors-color" id="kpi-unique">0</div>
         <div class="metric-desc">Distinct authors</div>
       </div>
+    </section>
+
+    <!-- Developer Diagnostic Run Log Card (Toggled via Ctrl+Shift+D) -->
+    <section class="card dev-diag-card developer-diagnostic" id="dev-diag-panel" style="display: none;">
+      <div class="dev-diag-header">
+        <div>
+          <span class="dev-diag-badge">🛠️ DEVELOPER DIAGNOSTIC LOG</span>
+          <span class="dev-diag-sub">Real-Time Meta/API Pagination &amp; Retrieval Inspector (Ctrl+Shift+D)</span>
+        </div>
+        <button type="button" id="btn-copy-diag" class="btn btn-ghost btn-sm" title="Copy diagnostic log">
+          <span>Copy Log</span>
+        </button>
+      </div>
+      <pre class="dev-diag-console" id="dev-diag-output">Waiting for comment collection to start...</pre>
     </section>
 
     <!-- Main Dashboard Split Layout -->
@@ -2029,9 +2154,19 @@ html, body {
     // KPIs
     kpiTotal: document.getElementById('kpi-total'),
     kpiBreakdown: document.getElementById('kpi-breakdown'),
+    kpiSourceReported: document.getElementById('kpi-source-reported'),
+    kpiSourceDesc: document.getElementById('kpi-source-desc'),
+    kpiCoverageStatus: document.getElementById('kpi-coverage-status'),
+    kpiCoverageDesc: document.getElementById('kpi-coverage-desc'),
     kpiSpeed: document.getElementById('kpi-speed'),
     kpiTime: document.getElementById('kpi-time'),
     kpiUnique: document.getElementById('kpi-unique'),
+    sourceCountInput: document.getElementById('source-count-input'),
+
+    // Developer Diagnostic Console
+    devDiagPanel: document.getElementById('dev-diag-panel'),
+    devDiagOutput: document.getElementById('dev-diag-output'),
+    btnCopyDiag: document.getElementById('btn-copy-diag'),
     
     // Spotlight Card
     spotlightTime: document.getElementById('spotlight-time'),
@@ -2171,20 +2306,104 @@ html, body {
 
   function updateKpis(stats) {
     if (!stats) return;
-    el.kpiTotal.textContent = Number(stats.count || 0).toLocaleString();
+    state.lastStats = stats;
+    const count = Number(stats.count || 0);
+    el.kpiTotal.textContent = count.toLocaleString();
+
     if (el.kpiBreakdown) {
-      const topLevel = Number(stats.top_level_count !== undefined ? stats.top_level_count : (stats.count || 0)).toLocaleString();
+      const topLevel = Number(stats.top_level_count !== undefined ? stats.top_level_count : count).toLocaleString();
       const replies = Number(stats.replies_count || 0).toLocaleString();
       el.kpiBreakdown.textContent = `Top-level: ${topLevel} · Replies: ${replies}`;
     }
+
+    if (el.kpiSourceReported) {
+      if (stats.source_reported_count && Number(stats.source_reported_count) > 0) {
+        el.kpiSourceReported.textContent = Number(stats.source_reported_count).toLocaleString();
+        if (el.kpiSourceDesc) el.kpiSourceDesc.textContent = 'Facebook reported count';
+      } else {
+        el.kpiSourceReported.textContent = '—';
+        if (el.kpiSourceDesc) el.kpiSourceDesc.textContent = 'Pending / Unreported';
+      }
+    }
+
+    if (el.kpiCoverageStatus) {
+      const isComplete = stats.status === 'COMPLETED' || stats.status === 'COMPLETE';
+      const isPartial = stats.is_partial || stats.status === 'PARTIAL';
+      if (isPartial) {
+        el.kpiCoverageStatus.textContent = 'PARTIAL';
+        el.kpiCoverageStatus.style.color = '#f59e0b';
+        if (el.kpiCoverageDesc) el.kpiCoverageDesc.textContent = 'Partial coverage (API limited)';
+      } else if (isComplete) {
+        el.kpiCoverageStatus.textContent = 'COMPLETE';
+        el.kpiCoverageStatus.style.color = '#10b981';
+        if (el.kpiCoverageDesc) el.kpiCoverageDesc.textContent = 'All available retrieved';
+      } else if (stats.status === 'COLLECTING' || stats.status === 'ACCESSING') {
+        el.kpiCoverageStatus.textContent = 'STREAMING';
+        el.kpiCoverageStatus.style.color = '#06b6d4';
+        if (el.kpiCoverageDesc) el.kpiCoverageDesc.textContent = 'Ingesting comments...';
+      } else if (stats.status === 'ERROR') {
+        el.kpiCoverageStatus.textContent = 'FAILED';
+        el.kpiCoverageStatus.style.color = '#ef4444';
+        if (el.kpiCoverageDesc) el.kpiCoverageDesc.textContent = 'Collection failed';
+      } else {
+        el.kpiCoverageStatus.textContent = stats.status || 'READY';
+        el.kpiCoverageStatus.style.color = 'var(--text-muted)';
+        if (el.kpiCoverageDesc) el.kpiCoverageDesc.textContent = 'Authorized data source';
+      }
+    }
+
     el.kpiSpeed.innerHTML = `${stats.comments_per_sec || 0} <span class="metric-unit">/sec</span>`;
     el.kpiTime.textContent = formatDuration(stats.elapsed_seconds || 0);
     el.kpiUnique.textContent = Number(stats.unique_authors || 0).toLocaleString();
-    el.feedCounter.textContent = Number(stats.count || 0).toLocaleString();
+    el.feedCounter.textContent = count.toLocaleString();
 
-    const hasComments = (stats.count || 0) > 0;
+    const hasComments = count > 0;
     if (el.btnExportExcel) el.btnExportExcel.disabled = !hasComments;
     if (el.btnExportExcelNoNames) el.btnExportExcelNoNames.disabled = !hasComments;
+
+    // Render developer diagnostic console log
+    renderDiagnosticLog(stats);
+  }
+
+  function renderDiagnosticLog(stats) {
+    if (!el.devDiagOutput) return;
+    const summary = stats.diagnostics_summary || {};
+    const logs = stats.diagnostic_logs || [];
+    const postId = el.postUrl ? el.postUrl.value.trim() : 'UNKNOWN';
+    const sourceCount = (stats.source_reported_count && Number(stats.source_reported_count) > 0)
+      ? stats.source_reported_count
+      : 'Unreported by source';
+
+    let txt = `==================================================\n`;
+    txt += `DEVELOPER DIAGNOSTIC LOG (Ctrl+Shift+D)\n`;
+    txt += `==================================================\n`;
+    txt += `POST ID: ${postId}\n`;
+    txt += `SOURCE COUNT: ${sourceCount}\n\n`;
+
+    if (logs.length > 0) {
+      logs.forEach(log => {
+        txt += `PAGE: ${log.request_index}\n`;
+        txt += `RETURNED: ${log.comments_returned}\n`;
+        txt += `NEXT: ${log.next_exists ? 'YES' : 'NO'}\n`;
+        txt += `CURSOR: ${log.cursor}\n\n`;
+      });
+    } else {
+      txt += `PAGE: 1\n`;
+      txt += `RETURNED: ${stats.count || 0}\n`;
+      txt += `NEXT: NO\n\n`;
+    }
+
+    txt += `FINAL:\n`;
+    txt += `RAW COMMENTS RECEIVED: ${summary.raw_comments_received || stats.count || 0}\n`;
+    txt += `UNIQUE COMMENT IDS: ${summary.unique_comment_ids || stats.count || 0}\n`;
+    txt += `TOP LEVEL: ${summary.top_level !== undefined ? summary.top_level : (stats.top_level_count || stats.count || 0)}\n`;
+    txt += `REPLIES: ${summary.replies !== undefined ? summary.replies : (stats.replies_count || 0)}\n`;
+    txt += `DUPLICATES REMOVED: ${summary.duplicates_removed || 0}\n`;
+    txt += `PAGES PROCESSED: ${summary.pages_processed || logs.length || 1}\n`;
+    txt += `PAGINATION EXHAUSTED: ${summary.pagination_exhausted ? 'YES' : 'NO'}\n`;
+    txt += `STATUS: ${stats.status || 'READY'}\n`;
+
+    el.devDiagOutput.textContent = txt;
   }
 
   function updateSpotlight(comment) {
@@ -2347,12 +2566,21 @@ html, body {
     } else if (status === 'COMPLETED') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-done';
-      el.liveStatusText.textContent = 'Done';
+      el.liveStatusText.textContent = 'Complete';
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
       stopActivePolling();
       playSuccessChime();
       showToast(message || 'Comment collection complete!', 'success');
+    } else if (status === 'PARTIAL') {
+      state.isCollecting = false;
+      el.liveIndicator.className = 'status-pill status-partial';
+      el.liveStatusText.textContent = 'Partial';
+      el.btnStart.disabled = false;
+      el.btnStop.disabled = true;
+      stopActivePolling();
+      playSuccessChime();
+      showToast(message || 'Partial collection complete (source limits reached).', 'warning');
     } else if (status === 'CANCELLED') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-stopped';
@@ -2361,10 +2589,10 @@ html, body {
       el.btnStop.disabled = true;
       stopActivePolling();
       showToast(message || 'Collection stopped.', 'info');
-    } else if (status === 'ERROR') {
+    } else if (status === 'ERROR' || status === 'FAILED') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-error';
-      el.liveStatusText.textContent = 'Error';
+      el.liveStatusText.textContent = 'Failed';
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
       stopActivePolling();
@@ -2804,10 +3032,15 @@ html, body {
 
     try {
       const chosenMode = state.isAuthenticated ? 'api' : 'public';
+      const sourceCountVal = el.sourceCountInput ? parseInt(el.sourceCountInput.value.trim(), 10) : null;
       const startRes = await apiFetch(`${apiTarget}/api/collect/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, mode: chosenMode }),
+        body: JSON.stringify({ 
+          url: url, 
+          mode: chosenMode,
+          source_count: (!isNaN(sourceCountVal) && sourceCountVal > 0) ? sourceCountVal : null
+        }),
         signal: AbortSignal.timeout(60000)
       });
       const data = await startRes.json();
@@ -3173,6 +3406,16 @@ html, body {
     if (el.btnDismissEngineModal) el.btnDismissEngineModal.addEventListener('click', closeEngineModal);
     if (el.btnSaveEngine) el.btnSaveEngine.addEventListener('click', saveCustomEngine);
     if (el.btnRunSimulator) el.btnRunSimulator.addEventListener('click', runSimulator);
+    if (el.btnCopyDiag && el.devDiagOutput) {
+      el.btnCopyDiag.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(el.devDiagOutput.textContent || '');
+          showToast('Diagnostic log copied to clipboard!', 'success');
+        } catch (err) {
+          showToast('Failed to copy log: ' + err, 'error');
+        }
+      });
+    }
     if (el.engineModal) {
       el.engineModal.addEventListener('click', (e) => {
         if (e.target === el.engineModal) closeEngineModal();
