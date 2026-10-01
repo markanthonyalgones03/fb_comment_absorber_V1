@@ -564,34 +564,6 @@ html, body {
   color: var(--text-muted);
 }
 
-/* Optional FB count input inside URL row */
-.source-count-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 4px 10px;
-  height: 44px;
-  white-space: nowrap;
-}
-.source-count-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.source-count-input {
-  width: 75px;
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  outline: none;
-}
 
 /* Developer Diagnostic Run Log Card */
 .dev-diag-card {
@@ -1814,10 +1786,6 @@ html, body {
           />
           <button type="button" id="clear-url-btn" class="btn-clear" title="Clear URL">&times;</button>
         </div>
-        <div class="source-count-wrap" title="Optional: Enter Facebook's visible comment count for accuracy verification">
-          <span class="source-count-label">FB Count:</span>
-          <input type="number" id="source-count-input" class="source-count-input" placeholder="e.g. 53" min="0" />
-        </div>
       </div>
 
       <!-- Action Buttons Row -->
@@ -2161,7 +2129,6 @@ html, body {
     kpiSpeed: document.getElementById('kpi-speed'),
     kpiTime: document.getElementById('kpi-time'),
     kpiUnique: document.getElementById('kpi-unique'),
-    sourceCountInput: document.getElementById('source-count-input'),
 
     // Developer Diagnostic Console
     devDiagPanel: document.getElementById('dev-diag-panel'),
@@ -3032,14 +2999,13 @@ html, body {
 
     try {
       const chosenMode = state.isAuthenticated ? 'api' : 'public';
-      const sourceCountVal = el.sourceCountInput ? parseInt(el.sourceCountInput.value.trim(), 10) : null;
       const startRes = await apiFetch(`${apiTarget}/api/collect/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           url: url, 
           mode: chosenMode,
-          source_count: (!isNaN(sourceCountVal) && sourceCountVal > 0) ? sourceCountVal : null
+          max_comments: 0
         }),
         signal: AbortSignal.timeout(60000)
       });

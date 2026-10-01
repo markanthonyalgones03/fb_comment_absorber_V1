@@ -268,7 +268,7 @@ class FacebookApiClient:
 
         return comments, next_url, next_after, total_count
 
-    def get_comment_replies(self, comment_id: str, limit: int = 100, max_replies: int = 500) -> List[Comment]:
+    def get_comment_replies(self, comment_id: str, limit: int = 100, max_replies: Optional[int] = None) -> List[Comment]:
         """
         Fetches all nested replies for a specific top-level comment by following
         Meta Graph API pagination cursors until genuinely exhausted.
@@ -322,7 +322,7 @@ class FacebookApiClient:
                         is_reply=True
                     ))
 
-                if len(replies) >= max_replies:
+                if max_replies is not None and len(replies) >= max_replies:
                     break
 
                 paging = data.get("paging", {})

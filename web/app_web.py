@@ -342,7 +342,7 @@ class PublicPostCommentCollector:
             run_url = f"https://api.apify.com/v2/acts/apify~facebook-comments-scraper/runs?token={self.api_token}"
             payload = {
                 "startUrls": [{"url": clean_url}],
-                "resultsLimit": max_comments if max_comments and max_comments > 0 else 5000,
+                "resultsLimit": max_comments if (max_comments and max_comments > 0) else 100000,
                 "includeNestedComments": True,
                 "viewOption": "RANKED_UNFILTERED"
             }
@@ -518,7 +518,7 @@ class PublicPostCommentCollector:
 
             while not self.is_cancelled:
                 batch_num += 1
-                items_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={self.api_token}&offset={offset}&limit=100"
+                items_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={self.api_token}&offset={offset}&limit=1000"
                 i_resp = requests.get(items_url, timeout=10)
                 items_fetched = 0
                 if i_resp.status_code == 200:
@@ -631,7 +631,7 @@ class CollectionSession:
             self.pagination_exhausted = exhausted
 
     def add_event_queue(self) -> queue.Queue:
-        q = queue.Queue(maxsize=500)
+        q = queue.Queue(maxsize=5000)
         with self.lock:
             self.event_queues.append(q)
         return q
@@ -727,7 +727,7 @@ class CollectionSession:
                 }
             }
 
-    def start(self, url: str, mode: str = "api", user_token: Optional[str] = None, max_comments: int = 5000, speed: float = 0.25, source_count: Optional[int] = None):
+    def start(self, url: str, mode: str = "api", user_token: Optional[str] = None, max_comments: int = 0, speed: float = 0.25, source_count: Optional[int] = None):
         with self.lock:
             if self.status in ("CONNECTING", "ACCESSING", "COLLECTING"):
                 return False, "Collection is already running."
@@ -1240,16 +1240,9 @@ def api_start_collect():
     data = request.get_json(silent=True) or {}
     url = data.get("url", "").strip()
     mode = data.get("mode", "api")
-    max_comments = int(data.get("max_comments", 5000))
+    max_comments = int(data.get("max_comments", 0))
     speed = float(data.get("speed", 0.25))
-
-    source_count_raw = data.get("source_count")
     source_count_int = None
-    if source_count_raw is not None and str(source_count_raw).strip():
-        try:
-            source_count_int = int(str(source_count_raw).strip())
-        except (ValueError, TypeError):
-            source_count_int = None
 
     if mode == "simulator":
         if not url:
