@@ -363,37 +363,39 @@ class RealBrowserCommentCollector(BaseCollector):
             is_logged_in = any(c.get("name") == "c_user" for c in cookies)
 
             if not is_logged_in:
-                if use_headless:
+                if not use_headless:
+                    self.on_status("CONNECTING", {"message": "Please log in to your Facebook account in the browser window to access post comments."})
+
+                    # Wait for user to log in
+                    login_wait = 0
+                    while login_wait < 180 and not self.is_cancelled:
+                        time.sleep(2)
+                        login_wait += 2
+                        try:
+                            if not self.driver.window_handles:
+                                self.on_status("ERROR", {"message": "Login window closed. Please log in to your Facebook account to access comments."})
+                                return
+                            cookies = self.driver.get_cookies()
+                            if any(c.get("name") == "c_user" for c in cookies):
+                                is_logged_in = True
+                                self.on_status("ACCESSING", {"message": "Login successful! Loading post comments..."})
+                                time.sleep(1.5)
+                                self.driver.get(clean_url)
+                                time.sleep(3.5)
+                                break
+                        except Exception:
+                            break
+                else:
+                    # In headless mode: safely dismiss any login modal / dialog overlays via DOM
                     try:
-                        self.driver.quit()
+                        self.driver.execute_script("""
+                            const closeBtns = document.querySelectorAll("div[role='dialog'] div[aria-label='Close'], div[role='dialog'] [aria-label='Close'], div[aria-label='Close'], div[aria-label='Isara']");
+                            for (let b of closeBtns) {
+                                try { b.click(); } catch(e) {}
+                            }
+                        """)
                     except Exception:
                         pass
-                    self.driver = self._create_driver(headless=False)
-                    self.driver.set_window_size(1100, 850)
-                    self.driver.get(clean_url)
-                    time.sleep(3.0)
-
-                self.on_status("CONNECTING", {"message": "Please log in to your Facebook account in the browser window to access post comments."})
-
-                # Wait for user to log in
-                login_wait = 0
-                while login_wait < 180 and not self.is_cancelled:
-                    time.sleep(2)
-                    login_wait += 2
-                    try:
-                        if not self.driver.window_handles:
-                            self.on_status("ERROR", {"message": "Login window closed. Please log in to your Facebook account to access comments."})
-                            return
-                        cookies = self.driver.get_cookies()
-                        if any(c.get("name") == "c_user" for c in cookies):
-                            is_logged_in = True
-                            self.on_status("ACCESSING", {"message": "Login successful! Loading post comments..."})
-                            time.sleep(1.5)
-                            self.driver.get(clean_url)
-                            time.sleep(3.5)
-                            break
-                    except Exception:
-                        break
 
             # Clean page docks to remove chat elements
             self._clean_page_docks(self.driver)
@@ -542,7 +544,7 @@ class RealBrowserCommentCollector(BaseCollector):
 
             if collected_count == 0 and not is_logged_in:
                 self.on_status("ERROR", {
-                    "message": "Facebook requires login to view comments on this content. Please log in and retry."
+                    "message": "Facebook requires login to view comments on this post. Please click 'Login with Facebook' (100% Free) at the top of the page to absorb comments."
                 })
             elif self.is_cancelled:
                 self.on_status("CANCELLED", {

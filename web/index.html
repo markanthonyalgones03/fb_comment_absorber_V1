@@ -1747,7 +1747,7 @@ html, body {
         <line x1="12" y1="16" x2="12" y2="12"></line>
         <line x1="12" y1="8" x2="12.01" y2="8"></line>
       </svg>
-      <span>Absorb public comments from any Facebook post, Reel, Video, or Page. (Login with Facebook is optional for accessing your own personal or managed Page posts via official Meta API).</span>
+      <span><strong>100% Free to Use:</strong> Paste any Facebook post, reel, or video link to absorb comments for free with real-time streaming and Excel export. (Login with Facebook is optional for personal/managed page posts via official Meta API).</span>
     </div>
 
     <!-- Login Required Banner (Shown if user is unauthenticated) -->
@@ -1794,6 +1794,11 @@ html, body {
           <button type="button" id="btn-start" class="btn btn-primary" title="Start collecting comments from URL">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
             <span>Start Collecting Real Comments</span>
+          </button>
+
+          <button type="button" id="btn-demo" class="btn btn-subtle" title="Test with free simulator" style="font-weight: 700; border-color: rgba(24, 119, 242, 0.4); color: var(--blue);">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>Try Free Demo (Simulator)</span>
           </button>
 
           <div class="primary-action-subrow">
@@ -2109,6 +2114,7 @@ html, body {
 
     // Actions
     btnStart: document.getElementById('btn-start'),
+    btnDemo: document.getElementById('btn-demo'),
     btnStop: document.getElementById('btn-stop'),
     btnCollectAnother: document.getElementById('btn-collect-another'),
     btnExportExcel: document.getElementById('btn-export-excel'),
@@ -3386,6 +3392,7 @@ html, body {
 
     // Main Buttons
     if (el.btnStart) el.btnStart.addEventListener('click', handleStart);
+    if (el.btnDemo) el.btnDemo.addEventListener('click', runSimulator);
     if (el.btnStop) el.btnStop.addEventListener('click', handleStop);
     if (el.btnCollectAnother) el.btnCollectAnother.addEventListener('click', handleCollectAnother);
     if (el.btnClear) el.btnClear.addEventListener('click', handleClear);

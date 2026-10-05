@@ -708,7 +708,12 @@ class PublicPostCommentCollector:
                         "message": f"Retrieved {count} comments from the authorized data source."
                     })
 
+        except PublicScraperCreditExhaustedError:
+            raise
         except Exception as e:
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("billing", "usage", "credit", "isn't enough")):
+                raise PublicScraperCreditExhaustedError(str(e))
             self.on_status("ERROR", {"message": f"Public comment absorption failed: {str(e)}"})
 
 
@@ -913,6 +918,7 @@ class CollectionSession:
                     self.current_collector = collector
                     collector.run(url)
                 elif mode == "public":
+                    collector_started = False
                     if apify_token:
                         try:
                             collector = PublicPostCommentCollector(
@@ -925,45 +931,40 @@ class CollectionSession:
                             )
                             self.current_collector = collector
                             collector.run(url, max_comments=max_comments)
+                            collector_started = True
                             return
                         except PublicScraperCreditExhaustedError as p_err:
-                            if meta_token:
-                                print(f"[+] Notice: Public scraper credit exhausted ({p_err}). Seamlessly switching to Meta Graph API...")
-                                self.on_status_change("ACCESSING", {
-                                    "message": "Connecting to Meta Graph API..."
-                                })
-                                collector = MetaGraphApiCollector(
-                                    access_token=meta_token,
-                                    on_comment=self.on_new_comment,
-                                    on_status=self.on_status_change,
-                                    on_source_count=self.set_source_reported_count,
-                                    on_diagnostic=self.add_diagnostic_log,
-                                    on_exhausted=self.set_pagination_exhausted
-                                )
-                                self.current_collector = collector
-                                collector.run(url)
-                                return
-                            else:
-                                self.on_status_change("ERROR", {
-                                    "message": "Public comment engine monthly credit limit exhausted on cloud account. Please set META_ACCESS_TOKEN on Render or click 'Login with Facebook' to absorb comments via official Meta Graph API."
-                                })
-                                return
-                    elif meta_token:
-                        # Fallback to Meta Graph API
-                        collector = MetaGraphApiCollector(
-                            access_token=meta_token,
-                            on_comment=self.on_new_comment,
-                            on_status=self.on_status_change,
-                            on_source_count=self.set_source_reported_count,
-                            on_diagnostic=self.add_diagnostic_log,
-                            on_exhausted=self.set_pagination_exhausted
-                        )
-                        self.current_collector = collector
-                        collector.run(url)
-                    else:
-                        self.on_status_change("ERROR", {
-                            "message": "No Facebook data source credentials configured on the server. Please set META_ACCESS_TOKEN on Render or click 'Login with Facebook'."
-                        })
+                            print(f"[+] Notice: Public scraper credit exhausted ({p_err}). Falling back to free collection engine...")
+                            collector_started = False
+
+                    if not collector_started:
+                        if meta_token:
+                            print("[+] Using Meta Graph API collector...")
+                            self.on_status_change("ACCESSING", {
+                                "message": "Connecting to Meta Graph API..."
+                            })
+                            collector = MetaGraphApiCollector(
+                                access_token=meta_token,
+                                on_comment=self.on_new_comment,
+                                on_status=self.on_status_change,
+                                on_source_count=self.set_source_reported_count,
+                                on_diagnostic=self.add_diagnostic_log,
+                                on_exhausted=self.set_pagination_exhausted
+                            )
+                            self.current_collector = collector
+                            collector.run(url)
+                        else:
+                            print("[+] Using free built-in browser collector...")
+                            self.on_status_change("ACCESSING", {
+                                "message": "Starting free built-in browser collector..."
+                            })
+                            collector = RealBrowserCommentCollector(
+                                on_comment=self.on_new_comment,
+                                on_status=self.on_status_change,
+                                headless=True
+                            )
+                            self.current_collector = collector
+                            collector.run(url)
                 else:
                     self.on_status_change("ERROR", {"message": f"Unknown mode: {mode}"})
             except Exception as e:
@@ -1459,15 +1460,16 @@ def api_start_collect():
         # Public visitor without website login: seamlessly use the server's authorized Meta connection
         chosen_mode = "api"
         token = server_token
-    elif apify_token:
-        chosen_mode = "public"
-        token = None
-    else:
+    elif mode == "api":
         return jsonify({
             "status": "error",
-            "error": "Please log in with Facebook first to collect comments from your account, or configure META_ACCESS_TOKEN on the server.",
-            "message": "Please log in with Facebook first to collect comments from your account, or configure META_ACCESS_TOKEN on the server."
+            "error": "Please log in with Facebook first to collect comments from your account via Meta Graph API.",
+            "message": "Please log in with Facebook first to collect comments from your account via Meta Graph API."
         }), 401
+    else:
+        # 100% Free Public mode: seamlessly routes to free built-in browser engine (with zero cost)
+        chosen_mode = "public"
+        token = None
 
     ok, msg = user_session.collection_session.start(
         url=url,
