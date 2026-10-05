@@ -55,9 +55,13 @@ class FacebookApiClient:
         # If a full URL is supplied (e.g. from paging.next), use it directly
         if endpoint_or_url.startswith("http://") or endpoint_or_url.startswith("https://"):
             url = endpoint_or_url
-            # Make sure access token is present
-            if "access_token" not in url and "access_token" not in params:
-                params["access_token"] = self.access_token
+            if params:
+                req_params = dict(params)
+            else:
+                req_params = {}
+            if "access_token" not in url and "access_token" not in req_params:
+                req_params["access_token"] = self.access_token
+            params = req_params if req_params else None
         else:
             path = endpoint_or_url.lstrip("/")
             url = f"{self.base_url}/{path}"
@@ -227,7 +231,16 @@ class FacebookApiClient:
             if after_cursor:
                 params["after"] = after_cursor
 
-            data = self._get(f"/{post_id}/comments", params=params)
+            try:
+                data = self._get(f"/{post_id}/comments", params=params)
+            except AppError as e:
+                # If stream filter is not supported for this post or object, fallback to toplevel
+                err_text = str(e).lower()
+                if "stream" in err_text or "filter" in err_text:
+                    params["filter"] = "toplevel"
+                    data = self._get(f"/{post_id}/comments", params=params)
+                else:
+                    raise
 
         raw_comments = data.get("data", [])
         paging = data.get("paging", {})
@@ -247,6 +260,7 @@ class FacebookApiClient:
             message = item.get("message", "") or ""
             created_time = parse_fb_timestamp(item.get("created_time", ""))
             parent_id = (item.get("parent") or {}).get("id")
+            comment_count = int(item.get("comment_count", 0) or 0)
 
             comments.append(Comment(
                 comment_id=str(c_id),
@@ -259,12 +273,17 @@ class FacebookApiClient:
                 raw_source_text=str(message),
                 is_translation=False,
                 original_field_used="message",
-                is_reply=bool(parent_id)
+                is_reply=bool(parent_id),
+                comment_count=comment_count
             ))
 
         next_url = paging.get("next")
         cursors = paging.get("cursors", {})
         next_after = cursors.get("after")
+
+        # Cycle prevention: if next_after matches the cursor we just sent, end pagination
+        if next_after and next_after == after_cursor:
+            next_after = None
 
         return comments, next_url, next_after, total_count
 

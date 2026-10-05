@@ -60,14 +60,51 @@ NETWORK_INFO: Dict[str, str] = {
 }
 
 
+class PublicScraperCreditExhaustedError(Exception):
+    """Raised when Apify actor credits or usage limits are exhausted."""
+    pass
+
+
+def resolve_meta_access_token(user_session=None) -> Optional[str]:
+    """
+    Resolves the best available legitimate access token for Meta Graph API calls:
+    1. User's isolated OAuth session token (if logged in with Facebook)
+    2. Server-configured META_ACCESS_TOKEN (environment variable or config)
+    3. Server-configured Meta App Access Token (META_APP_ID|META_APP_SECRET)
+    """
+    if user_session and getattr(user_session, "is_authenticated", False) and getattr(user_session, "access_token", None):
+        return user_session.access_token.strip()
+
+    env_token = os.environ.get("META_ACCESS_TOKEN", "").strip()
+    if env_token:
+        return env_token
+
+    try:
+        from app.config import load_config
+        cfg_token = (load_config().access_token or "").strip()
+        if cfg_token:
+            return cfg_token
+    except Exception:
+        pass
+
+    app_id = os.environ.get("META_APP_ID", "").strip()
+    app_secret = os.environ.get("META_APP_SECRET", "").strip()
+    if app_id and app_secret:
+        return f"{app_id}|{app_secret}"
+
+    return None
+
+
 # ============================================================================
-# Meta Graph API Collector (Uses Authenticated User's Access Token)
+# Meta Graph API Collector (Official Compliant Meta Graph API v21.0)
 # ============================================================================
 
 class MetaGraphApiCollector:
     """
     Collects comments directly from official Meta Graph API v21.0.
-    Communicates server-to-server with Facebook using the authenticated user's access token.
+    Communicates server-to-server with Facebook using legitimate access credentials.
+    Supports complete pagination across thousands of comments, recursive reply traversal,
+    resilient retry with backoff, and duplicate protection.
     """
     def __init__(
         self,
@@ -117,6 +154,8 @@ class MetaGraphApiCollector:
             count = 0
             page_index = 0
             seen_cursors = set()
+            seen_urls = set()
+            seen_comment_ids = set()
 
             palette = [
                 "#1877F2", "#10B981", "#6366F1", "#EC4899", 
@@ -125,17 +164,54 @@ class MetaGraphApiCollector:
 
             while not self.is_cancelled:
                 page_index += 1
-                comments, next_url, after_cursor, total_reported = client.get_comments_page(
-                    post_id=post_id,
-                    after_cursor=after_cursor,
-                    next_page_url=next_url,
-                    limit=100
-                )
+                page_data = None
+
+                # Resilient pagination request with retry & backoff
+                for attempt in range(1, 4):
+                    if self.is_cancelled:
+                        break
+                    try:
+                        comments, next_url, after_cursor, total_reported = client.get_comments_page(
+                            post_id=post_id,
+                            after_cursor=after_cursor,
+                            next_page_url=next_url,
+                            limit=100
+                        )
+                        page_data = (comments, next_url, after_cursor, total_reported)
+                        break
+                    except RateLimitError:
+                        print(f"[*] Meta rate limit reached on page {page_index}. Pausing 10s before retry {attempt}/3...")
+                        time.sleep(10)
+                        if attempt == 3:
+                            if count > 0:
+                                self.on_status("PARTIAL", {
+                                    "message": f"Facebook API rate limit reached. Safely saved {count} comments collected so far."
+                                })
+                                return
+                            raise
+                    except (NetworkError, Exception) as fetch_err:
+                        print(f"[*] Fetch notice on page {page_index} (attempt {attempt}/3): {fetch_err}")
+                        if attempt < 3:
+                            time.sleep(attempt * 2)
+                        else:
+                            if count > 0:
+                                self.on_status("PARTIAL", {
+                                    "message": f"Collection paused due to temporary network notice ({fetch_err}). Retained {count} comments."
+                                })
+                                return
+                            raise fetch_err
+
+                if not page_data or self.is_cancelled:
+                    break
+
+                comments, next_url, after_cursor, total_reported = page_data
 
                 if total_reported and total_reported > 0 and self.source_reported_count is None:
                     self.source_reported_count = total_reported
                     if self.on_source_count:
                         self.on_source_count(total_reported)
+
+                print(f"[COLLECT] Post: {post_id} | Page {page_index}: {len(comments)} comments returned | Next cursor: {bool(next_url or after_cursor)} | Total unique: {count}")
 
                 if self.on_diagnostic:
                     self.on_diagnostic({
@@ -153,10 +229,17 @@ class MetaGraphApiCollector:
                     self.on_status("COMPLETED", {"message": "No comments found on this post (or comments are restricted)."})
                     return
 
+                new_on_page = 0
                 for c in comments:
                     if self.is_cancelled:
                         break
+                    c_id = str(c.comment_id)
+                    if c_id in seen_comment_ids:
+                        continue
+                    seen_comment_ids.add(c_id)
                     count += 1
+                    new_on_page += 1
+
                     parts = [p for p in (c.user_name or "").split() if p]
                     if len(parts) >= 2:
                         initials = (parts[0][0] + parts[1][0]).upper()
@@ -171,7 +254,7 @@ class MetaGraphApiCollector:
 
                     web_comment = WebComment(
                         index=count,
-                        comment_id=str(c.comment_id),
+                        comment_id=c_id,
                         user_name=c.user_name or "Facebook User",
                         message=c.original_text or c.message or "",
                         created_time=created_str,
@@ -188,13 +271,18 @@ class MetaGraphApiCollector:
                     )
                     self.on_comment(web_comment)
 
-                    # Also retrieve nested replies for top-level comments so count matches Facebook
-                    if not c.parent_id:
+                    # Only fetch replies for top-level comments that actually have replies (comment_count > 0)
+                    num_replies = getattr(c, "comment_count", 0)
+                    if not c.parent_id and num_replies > 0:
                         try:
-                            replies = client.get_comment_replies(str(c.comment_id), limit=100)
+                            replies = client.get_comment_replies(c_id, limit=100)
                             for reply in replies:
                                 if self.is_cancelled:
                                     break
+                                r_id = str(reply.comment_id)
+                                if r_id in seen_comment_ids:
+                                    continue
+                                seen_comment_ids.add(r_id)
                                 count += 1
                                 r_parts = [p for p in (reply.user_name or "").split() if p]
                                 if len(r_parts) >= 2:
@@ -209,7 +297,7 @@ class MetaGraphApiCollector:
 
                                 reply_web_comment = WebComment(
                                     index=count,
-                                    comment_id=str(reply.comment_id),
+                                    comment_id=r_id,
                                     user_name=reply.user_name or "Facebook User",
                                     message=reply.original_text or reply.message or "",
                                     created_time=r_created,
@@ -222,22 +310,24 @@ class MetaGraphApiCollector:
                                     original_field_used=reply.original_field_used or "message",
                                     raw_source_text=reply.raw_source_text or reply.message or "",
                                     is_reply=True,
-                                    parent_id=str(c.comment_id)
+                                    parent_id=c_id
                                 )
                                 self.on_comment(reply_web_comment)
-                        except Exception:
-                            # If fetching replies fails for a specific comment, continue
-                            pass
+                        except Exception as r_err:
+                            print(f"[!] Notice: Reply retrieval skipped for comment {c_id}: {r_err}")
+
+                # Termination conditions
+                if not comments or new_on_page == 0:
+                    if self.on_exhausted:
+                        self.on_exhausted(True)
+                    break
 
                 if not next_url and not after_cursor:
                     if self.on_exhausted:
                         self.on_exhausted(True)
                     break
-                if not comments:
-                    if self.on_exhausted:
-                        self.on_exhausted(True)
-                    break
 
+                # Cursor cycle prevention
                 if after_cursor:
                     if after_cursor in seen_cursors:
                         if self.on_exhausted:
@@ -245,7 +335,14 @@ class MetaGraphApiCollector:
                         break
                     seen_cursors.add(after_cursor)
 
-                time.sleep(0.1)
+                if next_url:
+                    if next_url in seen_urls:
+                        if self.on_exhausted:
+                            self.on_exhausted(True)
+                        break
+                    seen_urls.add(next_url)
+
+                time.sleep(0.08)
 
             if self.is_cancelled:
                 self.on_status("CANCELLED", {"message": f"Collection stopped by user. Retrieved {count} comments."})
@@ -253,7 +350,7 @@ class MetaGraphApiCollector:
                 src_cnt = self.source_reported_count
                 if src_cnt and count < src_cnt:
                     self.on_status("PARTIAL", {
-                        "message": f"Retrieved {count} of {src_cnt} source-reported comments."
+                        "message": f"Retrieved {count} of {src_cnt} source-reported comments from the authorized data source."
                     })
                 else:
                     self.on_status("COMPLETED", {
@@ -373,17 +470,17 @@ class PublicPostCommentCollector:
                 except Exception:
                     err_detail = resp.text[:200] if resp else ""
 
+                sc = resp.status_code if resp else 0
+                err_lower = err_detail.lower()
+                is_credit_limit = (sc == 402 or "isn't enough" in err_lower or "billing" in err_lower or "usage" in err_lower or "credit" in err_lower)
+
+                if is_credit_limit:
+                    raise PublicScraperCreditExhaustedError(err_detail or "Credit limit reached on public scraper")
+
                 if resp and resp.status_code == 401:
                     self.on_status("ERROR", {"message": "Invalid APIFY_API_TOKEN. Please verify your token in cloud environment settings."})
-                elif resp and resp.status_code == 402:
-                    msg = "Apify monthly usage/credit limit exhausted on cloud account (HTTP 402)."
-                    if err_detail:
-                        msg += f" {err_detail}."
-                    msg += " Tip: Click 'Login with Facebook' to absorb comments via official Meta Graph API (100% free with no credit limits)."
-                    self.on_status("ERROR", {"message": msg})
                 else:
-                    sc = resp.status_code if resp else "unknown"
-                    self.on_status("ERROR", {"message": f"Public post engine error: HTTP {sc} {err_detail}".strip()})
+                    self.on_status("ERROR", {"message": f"Public post engine notice: HTTP {sc} {err_detail}".strip()})
                 return
 
             run_data = resp.json().get("data", {})
@@ -789,6 +886,8 @@ class CollectionSession:
         def _worker():
             try:
                 apify_token = os.environ.get("APIFY_API_TOKEN", "").strip()
+                meta_token = user_token or resolve_meta_access_token()
+
                 if mode == "simulator":
                     collector = SimulatorCollector(
                         on_comment=self.on_new_comment,
@@ -796,30 +895,14 @@ class CollectionSession:
                     )
                     self.current_collector = collector
                     collector.run(url, max_comments=max_comments, speed=speed)
-                elif mode == "public" or (apify_token and not user_token):
-                    if not apify_token:
-                        self.on_status_change("ERROR", {
-                            "message": "APIFY_API_TOKEN is not configured on Render. Please configure it in cloud environment settings."
-                        })
-                        return
-                    collector = PublicPostCommentCollector(
-                        api_token=apify_token,
-                        on_comment=self.on_new_comment,
-                        on_status=self.on_status_change,
-                        on_source_count=self.set_source_reported_count,
-                        on_diagnostic=self.add_diagnostic_log,
-                        on_exhausted=self.set_pagination_exhausted
-                    )
-                    self.current_collector = collector
-                    collector.run(url, max_comments=max_comments)
                 elif mode == "api":
-                    if not user_token:
+                    if not meta_token:
                         self.on_status_change("ERROR", {
-                            "message": "Please log in with Facebook first to collect comments from your account."
+                            "message": "No Facebook data source credentials found. Please set META_ACCESS_TOKEN in environment variables, or click 'Login with Facebook' to connect your account."
                         })
                         return
                     collector = MetaGraphApiCollector(
-                        access_token=user_token,
+                        access_token=meta_token,
                         on_comment=self.on_new_comment,
                         on_status=self.on_status_change,
                         on_source_count=self.set_source_reported_count,
@@ -828,6 +911,58 @@ class CollectionSession:
                     )
                     self.current_collector = collector
                     collector.run(url)
+                elif mode == "public":
+                    if apify_token:
+                        try:
+                            collector = PublicPostCommentCollector(
+                                api_token=apify_token,
+                                on_comment=self.on_new_comment,
+                                on_status=self.on_status_change,
+                                on_source_count=self.set_source_reported_count,
+                                on_diagnostic=self.add_diagnostic_log,
+                                on_exhausted=self.set_pagination_exhausted
+                            )
+                            self.current_collector = collector
+                            collector.run(url, max_comments=max_comments)
+                            return
+                        except PublicScraperCreditExhaustedError as p_err:
+                            if meta_token:
+                                print(f"[+] Notice: Public scraper credit exhausted ({p_err}). Seamlessly switching to Meta Graph API...")
+                                self.on_status_change("ACCESSING", {
+                                    "message": "Connecting to Meta Graph API..."
+                                })
+                                collector = MetaGraphApiCollector(
+                                    access_token=meta_token,
+                                    on_comment=self.on_new_comment,
+                                    on_status=self.on_status_change,
+                                    on_source_count=self.set_source_reported_count,
+                                    on_diagnostic=self.add_diagnostic_log,
+                                    on_exhausted=self.set_pagination_exhausted
+                                )
+                                self.current_collector = collector
+                                collector.run(url)
+                                return
+                            else:
+                                self.on_status_change("ERROR", {
+                                    "message": "Public comment engine monthly credit limit exhausted on cloud account. Please set META_ACCESS_TOKEN on Render or click 'Login with Facebook' to absorb comments via official Meta Graph API."
+                                })
+                                return
+                    elif meta_token:
+                        # Fallback to Meta Graph API
+                        collector = MetaGraphApiCollector(
+                            access_token=meta_token,
+                            on_comment=self.on_new_comment,
+                            on_status=self.on_status_change,
+                            on_source_count=self.set_source_reported_count,
+                            on_diagnostic=self.add_diagnostic_log,
+                            on_exhausted=self.set_pagination_exhausted
+                        )
+                        self.current_collector = collector
+                        collector.run(url)
+                    else:
+                        self.on_status_change("ERROR", {
+                            "message": "No Facebook data source credentials configured on the server. Please set META_ACCESS_TOKEN on Render or click 'Login with Facebook'."
+                        })
                 else:
                     self.on_status_change("ERROR", {"message": f"Unknown mode: {mode}"})
             except Exception as e:
@@ -1061,12 +1196,21 @@ def api_network_info():
     return jsonify(NETWORK_INFO)
 
 
+@app.route("/health", methods=["GET"])
+def health_root():
+    """Official health check endpoint for cloud platforms and uptime monitoring."""
+    return jsonify({
+        "status": "ok",
+        "service": "facebook-comment-absorber"
+    })
+
+
 @app.route("/api/health", methods=["GET"])
 def api_health():
     """Health check endpoint for cloud platforms and frontend connectivity test."""
     return jsonify({
         "status": "ok",
-        "service": "Comment Absorber API",
+        "service": "facebook-comment-absorber",
         "timestamp": time.time()
     })
 
@@ -1250,13 +1394,15 @@ def api_admin_status():
     user_session = get_current_user_session()
     has_app_id = bool(app_id)
     app_preview = f"{app_id[:4]}...{app_id[-4:]}" if has_app_id and len(app_id) > 8 else ("Configured" if has_app_id else "Not Configured")
+    server_token = resolve_meta_access_token()
+    token_configured = bool(server_token or user_session.is_authenticated or has_app_id)
     return jsonify({
         "backend_online": True,
         "api_version": "v21.0",
         "app_id_configured": has_app_id,
         "app_preview": app_preview,
         "apify_configured": bool(apify_token),
-        "meta_token_configured": user_session.is_authenticated or has_app_id,
+        "meta_token_configured": token_configured,
         "user_authenticated": user_session.is_authenticated,
         "user_name": user_session.user_name if user_session.is_authenticated else None
     })
@@ -1299,22 +1445,27 @@ def api_start_collect():
 
     apify_token = os.environ.get("APIFY_API_TOKEN", "").strip()
     is_authenticated = user_session.is_authenticated and bool(user_session.access_token)
+    server_token = resolve_meta_access_token()
 
-    # Route between Public Post Engine and Meta Graph API
-    if apify_token and (mode == "public" or not is_authenticated):
-        chosen_mode = "public"
-        token = None
-    elif is_authenticated:
+    # Route intelligently:
+    # 1. User authenticated via Facebook login -> Use user's access token via Meta Graph API
+    # 2. Server has Meta credentials/token (META_ACCESS_TOKEN or META_APP_ID|META_APP_SECRET) -> Use Meta Graph API directly
+    # 3. Server has APIFY_API_TOKEN (and no direct Meta token) -> Use PublicPostCommentCollector (with auto-fallback to Meta if credits fail)
+    if is_authenticated:
         chosen_mode = "api"
         token = user_session.access_token
+    elif server_token:
+        # Public visitor without website login: seamlessly use the server's authorized Meta connection
+        chosen_mode = "api"
+        token = server_token
     elif apify_token:
         chosen_mode = "public"
         token = None
     else:
         return jsonify({
             "status": "error",
-            "error": "Please log in with Facebook first to collect comments from your account, or configure APIFY_API_TOKEN on Render to absorb comments from public posts.",
-            "message": "Please log in with Facebook first to collect comments from your account, or configure APIFY_API_TOKEN on Render to absorb comments from public posts."
+            "error": "Please log in with Facebook first to collect comments from your account, or configure META_ACCESS_TOKEN on the server.",
+            "message": "Please log in with Facebook first to collect comments from your account, or configure META_ACCESS_TOKEN on the server."
         }), 401
 
     ok, msg = user_session.collection_session.start(

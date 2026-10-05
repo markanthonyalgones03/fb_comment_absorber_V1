@@ -1385,7 +1385,10 @@ class ExcelReportExporter:
         header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
         header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        headers = ["User", "Comment", "Date"] if include_names else ["Comment", "Date"]
+        if include_names:
+            headers = ["Comment ID", "Commenter", "Comment", "Date", "Type", "Parent Comment ID"]
+        else:
+            headers = ["Comment ID", "Comment", "Date", "Type", "Parent Comment ID"]
         ws.append(headers)
         ws.row_dimensions[1].height = 28
 
@@ -1405,65 +1408,55 @@ class ExcelReportExporter:
         )
 
         for row_idx, c in enumerate(sorted_comments, start=2):
+            cid_clean = sanitize_for_excel(str(c.comment_id))
             u_clean = sanitize_for_excel(c.user_name)
             # Guarantees that Excel export ALWAYS writes the authentic original comment text
             m_clean = sanitize_for_excel(getattr(c, "original_text", None) or c.message)
             d_clean = sanitize_for_excel(c.created_time)
+            is_rep = bool(getattr(c, "is_reply", False) or getattr(c, "parent_id", None))
+            t_clean = "Reply" if is_rep else "Top-Level"
+            pid_clean = sanitize_for_excel(str(getattr(c, "parent_id", "") or ""))
 
             if include_names:
-                ws.append([u_clean, m_clean, d_clean])
-                ws.row_dimensions[row_idx].height = max(22, min(90, 18 * (m_clean.count("\n") + 1)))
-
-                c_user = ws.cell(row=row_idx, column=1)
-                c_msg = ws.cell(row=row_idx, column=2)
-                c_date = ws.cell(row=row_idx, column=3)
-
-                c_user.font = body_font
-                c_user.alignment = Alignment(horizontal="left", vertical="top")
-                c_user.border = thin_border
-
-                c_msg.font = body_font
-                c_msg.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-                c_msg.border = thin_border
-
-                c_date.font = body_font
-                c_date.alignment = Alignment(horizontal="center", vertical="top")
-                c_date.border = thin_border
-
-                if row_idx % 2 == 1:
-                    c_user.fill = alt_fill
-                    c_msg.fill = alt_fill
-                    c_date.fill = alt_fill
+                row_vals = [cid_clean, u_clean, m_clean, d_clean, t_clean, pid_clean]
             else:
-                ws.append([m_clean, d_clean])
-                ws.row_dimensions[row_idx].height = max(22, min(90, 18 * (m_clean.count("\n") + 1)))
+                row_vals = [cid_clean, m_clean, d_clean, t_clean, pid_clean]
 
-                c_msg = ws.cell(row=row_idx, column=1)
-                c_date = ws.cell(row=row_idx, column=2)
+            ws.append(row_vals)
+            ws.row_dimensions[row_idx].height = max(22, min(90, 18 * (m_clean.count("\n") + 1)))
 
-                c_msg.font = body_font
-                c_msg.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
-                c_msg.border = thin_border
-
-                c_date.font = body_font
-                c_date.alignment = Alignment(horizontal="center", vertical="top")
-                c_date.border = thin_border
+            for c_idx in range(1, len(row_vals) + 1):
+                cell = ws.cell(row=row_idx, column=c_idx)
+                cell.font = body_font
+                cell.border = thin_border
+                # Comment column gets text wrapping
+                if (include_names and c_idx == 3) or (not include_names and c_idx == 2):
+                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                elif (include_names and c_idx in (1, 4, 5, 6)) or (not include_names and c_idx in (1, 3, 4, 5)):
+                    cell.alignment = Alignment(horizontal="center", vertical="top")
+                else:
+                    cell.alignment = Alignment(horizontal="left", vertical="top")
 
                 if row_idx % 2 == 1:
-                    c_msg.fill = alt_fill
-                    c_date.fill = alt_fill
+                    cell.fill = alt_fill
 
         ws.freeze_panes = "A2"
-        max_col = "C" if include_names else "B"
-        ws.auto_filter.ref = f"A1:{max_col}{max(2, len(sorted_comments) + 1)}"
+        max_col_letter = openpyxl.utils.get_column_letter(len(headers))
+        ws.auto_filter.ref = f"A1:{max_col_letter}{max(2, len(sorted_comments) + 1)}"
 
         if include_names:
-            ws.column_dimensions["A"].width = 28
-            ws.column_dimensions["B"].width = 65
-            ws.column_dimensions["C"].width = 22
+            ws.column_dimensions["A"].width = 24
+            ws.column_dimensions["B"].width = 25
+            ws.column_dimensions["C"].width = 65
+            ws.column_dimensions["D"].width = 20
+            ws.column_dimensions["E"].width = 14
+            ws.column_dimensions["F"].width = 24
         else:
-            ws.column_dimensions["A"].width = 75
-            ws.column_dimensions["B"].width = 24
+            ws.column_dimensions["A"].width = 24
+            ws.column_dimensions["B"].width = 70
+            ws.column_dimensions["C"].width = 20
+            ws.column_dimensions["D"].width = 14
+            ws.column_dimensions["E"].width = 24
 
         wb.save(output_path)
         return output_path

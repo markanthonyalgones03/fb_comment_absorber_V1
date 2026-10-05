@@ -45,6 +45,7 @@ class Comment:
     original_field_used: str = "message"
     raw_source_text: str = ""
     is_reply: bool = False
+    comment_count: int = 0
 
     def __post_init__(self):
         if not self.original_text:

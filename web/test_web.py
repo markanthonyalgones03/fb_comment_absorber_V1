@@ -87,14 +87,17 @@ class TestCommentAbsorberWeb(unittest.TestCase):
         
         wb = openpyxl.load_workbook(temp_excel)
         ws = wb.active
-        self.assertEqual(ws.cell(row=1, column=1).value, "User")
-        self.assertEqual(ws.cell(row=1, column=2).value, "Comment")
-        self.assertEqual(ws.cell(row=1, column=3).value, "Date")
-        self.assertEqual(ws.cell(row=2, column=1).value, "Juan Dela Cruz")
-        self.assertIn("Interested", ws.cell(row=2, column=2).value)
+        self.assertEqual(ws.cell(row=1, column=1).value, "Comment ID")
+        self.assertEqual(ws.cell(row=1, column=2).value, "Commenter")
+        self.assertEqual(ws.cell(row=1, column=3).value, "Comment")
+        self.assertEqual(ws.cell(row=1, column=4).value, "Date")
+        self.assertEqual(ws.cell(row=1, column=5).value, "Type")
+        self.assertEqual(ws.cell(row=1, column=6).value, "Parent Comment ID")
+        self.assertEqual(ws.cell(row=2, column=2).value, "Juan Dela Cruz")
+        self.assertIn("Interested", ws.cell(row=2, column=3).value)
         wb.close()
         temp_excel.unlink(missing_ok=True)
-        print("[+] Verified Excel export: Proper headers ('User', 'Comment', 'Date') & rows match.")
+        print("[+] Verified Excel export: Comprehensive fields (Comment ID, Commenter, Comment, Date, Type, Parent Comment ID).")
 
         # 2. Test CSV export
         csv_resp = self.client.get("/api/export/csv?sort=oldest")

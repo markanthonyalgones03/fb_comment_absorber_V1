@@ -2534,7 +2534,7 @@ html, body {
       el.btnStart.disabled = true;
       el.btnStop.disabled = false;
       startActivePolling();
-    } else if (status === 'COMPLETED') {
+    } else if (status === 'COMPLETED' || status === 'COMPLETE') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-done';
       el.liveStatusText.textContent = 'Complete';
@@ -2785,8 +2785,16 @@ html, body {
     } catch (e) {}
 
     try {
-      const healthRes = await fetch(`${urlToCheck}/api/health`, { signal: AbortSignal.timeout(Math.min(timeoutMs, 5000)) });
+      const healthRes = await fetch(`${urlToCheck}/health`, { signal: AbortSignal.timeout(Math.min(timeoutMs, 5000)) });
       if (healthRes.ok) {
+        updateBackendStatusUI(urlToCheck, true, false, 'Backend Online');
+        return true;
+      }
+    } catch (e) {}
+
+    try {
+      const apiHealthRes = await fetch(`${urlToCheck}/api/health`, { signal: AbortSignal.timeout(Math.min(timeoutMs, 5000)) });
+      if (apiHealthRes.ok) {
         updateBackendStatusUI(urlToCheck, true, false, 'Backend Online');
         return true;
       }
@@ -2814,9 +2822,14 @@ html, body {
     // 2. Check localStorage saved backend URL
     const saved = localStorage.getItem('comment_absorber_engine_url');
     if (saved && saved.trim() && !saved.includes('trycloudflare.com')) {
-      activeApiTarget = saved.trim().replace(/\/+$/, '');
-      const ok = await checkAdminBackendStatus(activeApiTarget, 6000);
-      if (ok) return activeApiTarget;
+      const candidate = saved.trim().replace(/\/+$/, '');
+      const ok = await checkAdminBackendStatus(candidate, 6000);
+      if (ok) {
+        activeApiTarget = candidate;
+        return activeApiTarget;
+      } else {
+        localStorage.removeItem('comment_absorber_engine_url');
+      }
     }
 
     // 3. Fallback: Check backend_url.json if hosted on GitHub Pages

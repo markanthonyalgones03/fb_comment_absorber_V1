@@ -122,12 +122,14 @@ class TestOriginalCommentPreservation:
         assert ws.title in ("Facebook Comments", "Comments")
 
         # Check Row 2 (Juan's comment)
-        assert ws.cell(row=2, column=1).value == "Juan"
-        assert ws.cell(row=2, column=2).value == "Maayo kaayo ni bai hahaha 😍"
+        assert ws.cell(row=2, column=1).value == "c_201"
+        assert ws.cell(row=2, column=2).value == "Juan"
+        assert ws.cell(row=2, column=3).value == "Maayo kaayo ni bai hahaha 😍"
 
         # Check Row 3 (Maria's comment)
-        assert ws.cell(row=3, column=1).value == "Maria"
-        assert ws.cell(row=3, column=2).value == "Grabe ka gwapa ani uy 😍"
+        assert ws.cell(row=3, column=1).value == "c_202"
+        assert ws.cell(row=3, column=2).value == "Maria"
+        assert ws.cell(row=3, column=3).value == "Grabe ka gwapa ani uy 😍"
 
     def test_collection_session_tracks_top_level_and_replies_separately(self):
         """
