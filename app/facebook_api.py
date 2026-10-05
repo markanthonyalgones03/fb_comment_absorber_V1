@@ -14,7 +14,9 @@ from app.models import (
     AppError,
     InvalidUrlError,
     PostNotFoundError,
+    UrlResolutionError,
     PermissionDeniedError,
+    CommentsEdgeDeniedError,
     AuthenticationExpiredError,
     RateLimitError,
     NetworkError,
@@ -154,8 +156,8 @@ class FacebookApiClient:
                 if self._verify_node_accessible(post_id):
                     return post_id
 
-        # 2. If post_id is known (numeric or pfbid), test directly
-        if post_id:
+        # 2. If post_id is a direct numeric ID, verify accessibility directly
+        if post_id and post_id.isdigit():
             if self._verify_node_accessible(post_id):
                 return post_id
 
@@ -163,13 +165,11 @@ class FacebookApiClient:
         try:
             url_lookup = self._get("/", params={"id": clean_url, "fields": "id,og_object{id}"})
             if "og_object" in url_lookup and "id" in url_lookup["og_object"]:
-                candidate_id = url_lookup["og_object"]["id"]
+                candidate_id = str(url_lookup["og_object"]["id"])
                 if self._verify_node_accessible(candidate_id):
                     return candidate_id
-            if "id" in url_lookup and self._verify_node_accessible(url_lookup["id"]):
-                return url_lookup["id"]
-        except (PostNotFoundError, PermissionDeniedError):
-            raise
+            if "id" in url_lookup and self._verify_node_accessible(str(url_lookup["id"])):
+                return str(url_lookup["id"])
         except Exception:
             pass
 
@@ -185,11 +185,21 @@ class FacebookApiClient:
             except Exception:
                 pass
 
-        # If post_id was identified, return it as final candidate (will be validated on comments call)
-        if post_id:
+        # 5. If post_id is numeric, return it as final candidate (will be validated on comments call)
+        if post_id and post_id.isdigit():
             return post_id
 
-        raise PostNotFoundError(technical_details=f"Could not resolve post ID from URL: {clean_url}")
+        # 6. If post_id is a pfbid and was not resolvable to a numeric Graph API ID:
+        if post_id and post_id.startswith("pfbid"):
+            raise UrlResolutionError(
+                "Facebook URL could not be resolved to an accessible post.",
+                technical_details=f"pfbid identifier '{post_id}' requires Page authorization or could not be mapped to a canonical Graph API numeric ID."
+            )
+
+        raise UrlResolutionError(
+            "Facebook URL could not be resolved to an accessible post.",
+            technical_details=f"Could not resolve post ID from URL: {clean_url}"
+        )
 
     def _verify_node_accessible(self, node_id: str) -> bool:
         """

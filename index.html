@@ -2221,16 +2221,30 @@ html, body {
   }
 
   // --- Toast Notifications ---
+  const activeToastSet = new Set();
   function showToast(message, type = 'info') {
+    if (!message || !el.toastContainer) return;
+    const msgStr = String(message).trim();
+    if (activeToastSet.has(msgStr)) return; // Prevent duplicate toast stacking
+
+    while (el.toastContainer.children.length >= 2) {
+      const first = el.toastContainer.firstElementChild;
+      if (first) first.remove();
+    }
+
+    activeToastSet.add(msgStr);
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     const icons = { success: '&#9989;', error: '&#10060;', info: '&#8505;' };
-    toast.innerHTML = `<span>${icons[type] || '&#8505;'}</span><span>${escapeHtml(message)}</span>`;
+    toast.innerHTML = `<span>${icons[type] || '&#8505;'}</span><span>${escapeHtml(msgStr)}</span>`;
     el.toastContainer.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 250);
-    }, 3800);
+      setTimeout(() => {
+        toast.remove();
+        activeToastSet.delete(msgStr);
+      }, 250);
+    }, 4000);
   }
 
   function escapeHtml(text) {
@@ -2524,6 +2538,7 @@ html, body {
   }
 
   function updateStatusUI(status, message) {
+    const prevStatus = state.currentStatus;
     state.currentStatus = status;
     el.statusMessage.textContent = message || '';
 
@@ -2542,7 +2557,9 @@ html, body {
       el.btnStop.disabled = true;
       stopActivePolling();
       playSuccessChime();
-      showToast(message || 'Comment collection complete!', 'success');
+      if (prevStatus !== status) {
+        showToast(message || 'Comment collection complete!', 'success');
+      }
     } else if (status === 'PARTIAL') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-partial';
@@ -2551,7 +2568,9 @@ html, body {
       el.btnStop.disabled = true;
       stopActivePolling();
       playSuccessChime();
-      showToast(message || 'Partial collection complete (source limits reached).', 'warning');
+      if (prevStatus !== status) {
+        showToast(message || 'Partial collection complete (source limits reached).', 'warning');
+      }
     } else if (status === 'CANCELLED') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-stopped';
@@ -2559,7 +2578,9 @@ html, body {
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
       stopActivePolling();
-      showToast(message || 'Collection stopped.', 'info');
+      if (prevStatus !== status) {
+        showToast(message || 'Collection stopped.', 'info');
+      }
     } else if (status === 'ERROR' || status === 'FAILED') {
       state.isCollecting = false;
       el.liveIndicator.className = 'status-pill status-error';
@@ -2567,7 +2588,9 @@ html, body {
       el.btnStart.disabled = false;
       el.btnStop.disabled = true;
       stopActivePolling();
-      showToast(message || 'An error occurred.', 'error');
+      if (prevStatus !== status) {
+        showToast(message || 'An error occurred.', 'error');
+      }
       if (message && message.includes('Login with Facebook') && el.loginRequiredBanner) {
         el.loginRequiredBanner.style.display = 'flex';
       }
@@ -3040,7 +3063,6 @@ html, body {
         showToast(`Absorbing real comments via ${engineLabel}...`, 'info');
       } else {
         updateStatusUI('ERROR', data.error || data.message || 'Failed to start collection.');
-        showToast(data.error || data.message || 'Failed to start collection.', 'error');
         if (data.message && data.message.includes('Login with Facebook') && el.loginRequiredBanner) {
           el.loginRequiredBanner.style.display = 'flex';
         }

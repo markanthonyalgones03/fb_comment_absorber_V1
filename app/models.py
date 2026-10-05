@@ -117,6 +117,12 @@ class PostNotFoundError(AppError):
         super().__init__("The Facebook post could not be found or the URL is invalid.", technical_details)
 
 
+class UrlResolutionError(AppError):
+    """Raised when Facebook post URL or pfbid cannot be resolved to a canonical Graph API post ID."""
+    def __init__(self, message: str = "Facebook URL could not be resolved to an accessible post.", technical_details: Optional[str] = None):
+        super().__init__(message, technical_details)
+
+
 class PermissionDeniedError(AppError):
     """Raised when Meta API rejects access due to lack of permissions / unmanaged page."""
     def __init__(self, technical_details: Optional[str] = None):
@@ -124,6 +130,13 @@ class PermissionDeniedError(AppError):
             "Facebook/Meta does not allow this application to access comments from this post with the current permissions.",
             technical_details
         )
+
+
+class CommentsEdgeDeniedError(PermissionDeniedError):
+    """Raised when Facebook found the post, but Meta denies reading its comments."""
+    def __init__(self, message: str = "Facebook found the post, but Meta did not allow this application to access its comments.", technical_details: Optional[str] = None):
+        super().__init__(technical_details=technical_details)
+        self.user_message = message
 
 
 class AuthenticationExpiredError(AppError):

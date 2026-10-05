@@ -70,7 +70,8 @@ def resolve_meta_access_token(user_session=None) -> Optional[str]:
     Resolves the best available legitimate access token for Meta Graph API calls:
     1. User's isolated OAuth session token (if logged in with Facebook)
     2. Server-configured META_ACCESS_TOKEN (environment variable or config)
-    3. Server-configured Meta App Access Token (META_APP_ID|META_APP_SECRET)
+    Note: Raw Meta App Access Tokens (META_APP_ID|META_APP_SECRET) are intentionally
+    excluded here because Meta Graph API prohibits app tokens from reading post/reel comments.
     """
     if user_session and getattr(user_session, "is_authenticated", False) and getattr(user_session, "access_token", None):
         return user_session.access_token.strip()
@@ -86,11 +87,6 @@ def resolve_meta_access_token(user_session=None) -> Optional[str]:
             return cfg_token
     except Exception:
         pass
-
-    app_id = os.environ.get("META_APP_ID", "").strip()
-    app_secret = os.environ.get("META_APP_SECRET", "").strip()
-    if app_id and app_secret:
-        return f"{app_id}|{app_secret}"
 
     return None
 
@@ -136,7 +132,9 @@ class MetaGraphApiCollector:
                 AppError,
                 InvalidUrlError,
                 PostNotFoundError,
+                UrlResolutionError,
                 PermissionDeniedError,
+                CommentsEdgeDeniedError,
                 AuthenticationExpiredError,
                 RateLimitError,
                 NetworkError,
@@ -357,19 +355,22 @@ class MetaGraphApiCollector:
                         "message": f"Retrieved {count} comments from the authorized data source."
                     })
 
+        except UrlResolutionError as e:
+            self.on_status("ERROR", {
+                "message": e.user_message or "Facebook URL could not be resolved to an accessible post."
+            })
+        except CommentsEdgeDeniedError as e:
+            self.on_status("ERROR", {
+                "message": e.user_message or "Facebook found the post, but Meta did not allow this application to access its comments."
+            })
         except PermissionDeniedError:
             self.on_status("ERROR", {
                 "message": "Meta does not allow this post to be accessed with your current Facebook permissions."
             })
         except PostNotFoundError:
-            if "/share/" in raw_url:
-                msg = (
-                    "This mobile share link could not be resolved through the Meta API. "
-                    "Please open the post in your browser and copy the direct post URL (e.g. facebook.com/PageName/posts/... or facebook.com/reel/...)."
-                )
-            else:
-                msg = "Facebook post not found. Please verify the URL and ensure the post is publicly accessible."
-            self.on_status("ERROR", {"message": msg})
+            self.on_status("ERROR", {
+                "message": "Facebook post could not be found."
+            })
         except AuthenticationExpiredError:
             self.on_status("ERROR", {
                 "message": "Your Facebook login session has expired. Please log in again with Facebook."
